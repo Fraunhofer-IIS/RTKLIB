@@ -7,7 +7,7 @@ SRC    = ../../../src
 #CTARGET= -mfpu=neon -mfloat-abi=softfp -ffast-math
 CTARGET= -DENAGLO -DENAGAL -DENAQZS -DNFREQ=3
 
-CFLAGS = -Wall -O3 -ansi -pedantic -I$(SRC) -DTRACE $(CTARGET)
+CFLAGS = -Wall -O3 -ansi -pedantic -I$(SRC) -DTRACE -DSVR_REUSEADDR $(CTARGET)
 LDLIBS  = -lm -lrt -lpthread
 
 all        : rtkrcv
