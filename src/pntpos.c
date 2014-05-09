@@ -61,9 +61,9 @@ static double prange(const obsd_t *obs, const nav_t *nav, const double *azel,
     *var=0.0;
     
     if (!(sys=satsys(obs->sat,NULL))) return 0.0;
-    
-    /* L1-L2 for GPS/GLO/QZS, L1-L5 for GAL/SBS */
-    if (NFREQ>=3&&(sys&(SYS_GAL|SYS_SBS))) j=2;
+
+    /* L1-L2/5 for GPS/GLO/QZS, L1-L5 for GAL/SBS */
+    if (NFREQ>=3&&(sys&(SYS_GAL|SYS_SBS|SYS_GPS))) j=2;
     
     if (NFREQ<2||lam[i]==0.0||lam[j]==0.0) return 0.0;
     
@@ -91,7 +91,15 @@ static double prange(const obsd_t *obs, const nav_t *nav, const double *azel,
     }
     if (opt->ionoopt==IONOOPT_IFLC) { /* dual-frequency */
         
-        if (P1==0.0||P2==0.0) return 0.0;
+        if (P1==0.0||P2==0.0) {
+            trace(3, "one of the ranges is 0: P1=.4%f P2=%.4f\n", P1, P2);
+#ifdef USE_SINGLE_RANGE
+            return (P2==0.0)?P1:P2;
+#else
+            return 0.0;
+#endif
+        }
+
         if (obs->code[i]==CODE_L1C) P1+=P1_C1; /* C1->P1 */
         if (obs->code[j]==CODE_L2C) P2+=P2_C2; /* C2->P2 */
         

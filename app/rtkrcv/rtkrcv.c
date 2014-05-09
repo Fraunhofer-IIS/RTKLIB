@@ -1106,16 +1106,16 @@ static void probserv(vt_t *vt)
     rtksvrunlock(&svr);
     
     printvt(vt,"\n");
-    printvt(vt,"   GPST    SAT R       P1(m)       P2(m)      L1(cyc)      L2(cyc)  D1(Hz)  D2(Hz) S1 S2 LLI\n");
+    printvt(vt,"   GPST    SAT R       P1(m)       P2(m)       P3(m)      L1(cyc)      L2(cyc)      L3(cyc)  D1(Hz)  D2(Hz)  D3(Hz) S1 S2 S3 LLI...\n");
     for (i=0;i<n;i++) {
         time2str(obs[i].time,tstr,1);
         satno2id(obs[i].sat,id);
         printvt(vt,"%s %3s %d",tstr+11,id,obs[i].rcv);
-        for (j=0;j<2;j++) printvt(vt,"%12.2f",obs[i].P[j]);
-        for (j=0;j<2;j++) printvt(vt,"%13.2f",obs[i].L[j]);
-        for (j=0;j<2;j++) printvt(vt,"%8.2f" ,obs[i].D[j]);
-        for (j=0;j<2;j++) printvt(vt,"%2.0f" ,obs[i].SNR[j]*0.25);
-        for (j=0;j<2;j++) printvt(vt,"%2d"   ,obs[i].LLI[j]);
+        for (j=0;j<3;j++) printvt(vt,"%12.2f",obs[i].P[j]);
+        for (j=0;j<3;j++) printvt(vt,"%13.2f",obs[i].L[j]);
+        for (j=0;j<3;j++) printvt(vt,"%8.2f" ,obs[i].D[j]);
+        for (j=0;j<3;j++) printvt(vt,"%2.0f" ,obs[i].SNR[j]*0.25);
+        for (j=0;j<3;j++) printvt(vt,"%2d"   ,obs[i].LLI[j]);
         printvt(vt,"\n");
     }
 }
