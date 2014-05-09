@@ -466,8 +466,8 @@ static int ifmeas(const obsd_t *obs, const nav_t *nav, const double *azel,
     
     trace(4,"ifmeas  :\n");
     
-    /* L1-L2 for GPS/GLO/QZS, L1-L5 for GAL/SBS */
-    if (NFREQ>=3&&(satsys(obs->sat,NULL)&(SYS_GAL|SYS_SBS))) j=2;
+    /* L1-L2/L5 for GPS/GLO/QZS, L1-L5 for GAL/SBS */
+    if (NFREQ>=3&&(satsys(obs->sat,NULL)&(SYS_GAL|SYS_SBS|SYS_GPS))) j=2;
     
     if (NFREQ<2||lam[i]==0.0||lam[j]==0.0) return 0;
     
