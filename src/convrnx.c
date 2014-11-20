@@ -528,6 +528,14 @@ static void set_obstype(int format, rnxopt_t *opt)
         {CODE_L2I,CODE_L2Q,CODE_L2X,CODE_L7I,CODE_L7Q,CODE_L7X,CODE_L6I,CODE_L6Q,
          CODE_L6X}
     };
+    /* supported codes by OGRP */
+    const unsigned char codes_ogrp[6][8]={
+        {CODE_L1C,CODE_L2P,CODE_L2D,CODE_L2X,CODE_L5Q},
+        {CODE_L1C,CODE_L2C,CODE_L2P},
+        {CODE_L1B,CODE_L1C,CODE_L5Q,CODE_L7Q,CODE_L8Q},
+        {CODE_L1C,CODE_L2X,CODE_L5Q},
+        {CODE_L1C,CODE_L5I}
+    };
     /* supported codes by others */
     const unsigned char codes_other[6][8]={
         {CODE_L1C},{CODE_L1C},{0},{0},{CODE_L1C}
