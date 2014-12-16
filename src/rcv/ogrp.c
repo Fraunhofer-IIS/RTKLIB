@@ -23,7 +23,7 @@ int get_value_check_type(json_object *jobj, char* key, json_object **value, json
 int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
     double pseudorange, doppler, carrier_phase, snr, locktime;
     int sat_id;
-    json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id;
+    json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type;
     int freq_nr = 0; /* TODO Support other frequencies */
     double tt = timediff(raw->time,raw->tobs);
     int lli;
@@ -34,6 +34,14 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
 
     if (json_object_get_type(jobj) != json_type_object) {
         trace(1, "decode_ogrp_ch_meas: Type error, no object\n");
+        return -1;
+    }
+
+    /* Check supported GNSS and signal type */
+    if (get_value_check_type(jobj, "gnss", &jgnss, json_type_string) < 0) return -1;
+    if (get_value_check_type(jobj, "signal_type", &jsignal_type, json_type_string) < 0) return -1;
+    if (strcmp(json_object_get_string(jgnss), "GPS") != 0 || strcmp(json_object_get_string(jsignal_type), "L1CA") != 0) {
+        trace(1, "decode_ogrp_ch_meas: GNSS/signal combination is not supported\n");
         return -1;
     }
 
