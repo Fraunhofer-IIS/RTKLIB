@@ -180,7 +180,7 @@ static const char *pathopts[]={         /* path options help */
 #define FLGOPT  "0:off,1:std+2:age/ratio/ns"
 #define ISTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,7:ntripcli,8:ftp,9:http"
 #define OSTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripsvr"
-#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:gw10,9:javad,10:nvs,15:sp3"
+#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:gw10,9:javad,10:nvs,12:ogrp,15:sp3"
 #define NMEOPT  "0:off,1:latlon,2:single"
 #define SOLOPT  "0:llh,1:xyz,2:enu,3:nmea"
 #define MSGOPT  "0:all,1:rover,2:base,3:corr"
@@ -1106,16 +1106,16 @@ static void probserv(vt_t *vt)
     rtksvrunlock(&svr);
     
     printvt(vt,"\n");
-    printvt(vt,"   GPST    SAT R       P1(m)       P2(m)      L1(cyc)      L2(cyc)  D1(Hz)  D2(Hz) S1 S2 LLI\n");
+    printvt(vt,"   GPST    SAT R       P1(m)       P2(m)       P3(m)      L1(cyc)      L2(cyc)      L3(cyc)  D1(Hz)  D2(Hz)  D3(Hz) S1 S2 S3 LLI...\n");
     for (i=0;i<n;i++) {
         time2str(obs[i].time,tstr,1);
         satno2id(obs[i].sat,id);
         printvt(vt,"%s %3s %d",tstr+11,id,obs[i].rcv);
-        for (j=0;j<2;j++) printvt(vt,"%12.2f",obs[i].P[j]);
-        for (j=0;j<2;j++) printvt(vt,"%13.2f",obs[i].L[j]);
-        for (j=0;j<2;j++) printvt(vt,"%8.2f" ,obs[i].D[j]);
-        for (j=0;j<2;j++) printvt(vt,"%2.0f" ,obs[i].SNR[j]*0.25);
-        for (j=0;j<2;j++) printvt(vt,"%2d"   ,obs[i].LLI[j]);
+        for (j=0;j<3;j++) printvt(vt,"%12.2f",obs[i].P[j]);
+        for (j=0;j<3;j++) printvt(vt,"%13.2f",obs[i].L[j]);
+        for (j=0;j<3;j++) printvt(vt,"%8.2f" ,obs[i].D[j]);
+        for (j=0;j<3;j++) printvt(vt,"%2.0f" ,obs[i].SNR[j]*0.25);
+        for (j=0;j<3;j++) printvt(vt,"%2d"   ,obs[i].LLI[j]);
         printvt(vt,"\n");
     }
 }
@@ -1181,7 +1181,7 @@ static void prstream(vt_t *vt)
         "-","serial","file","tcpsvr","tcpcli","udp","ntrips","ntripc","ftp","http"
     };
     const char *fmt[]={"rtcm2","rtcm3","oem4","oem3","ubx","ss2","hemis","skytreq",
-                       "gw10","javad","lexr","","","","","sp3","","",""};
+                       "gw10","javad","lexr","","ogrp","","","sp3","","",""};
     const char *sol[]={"llh","xyz","enu","nmea"};
     stream_t stream[9];
     int i,format[9]={0};

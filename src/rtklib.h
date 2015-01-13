@@ -144,9 +144,9 @@ extern "C" {
 #endif
 #ifdef ENAQZS
 #define MINPRNQZS   193                 /* min satellite PRN number of QZSS */
-#define MAXPRNQZS   195                 /* max satellite PRN number of QZSS */
+#define MAXPRNQZS   199                 /* max satellite PRN number of QZSS */
 #define MINPRNQZS_S 183                 /* min satellite PRN number of QZSS SAIF */
-#define MAXPRNQZS_S 185                 /* max satellite PRN number of QZSS SAIF */
+#define MAXPRNQZS_S 189                 /* max satellite PRN number of QZSS SAIF */
 #define NSATQZS     (MAXPRNQZS-MINPRNQZS+1) /* number of QZSS satellites */
 #define NSYSQZS     1
 #else
@@ -370,17 +370,19 @@ extern "C" {
 #define STRFMT_JAVAD 9                  /* stream format: JAVAD GRIL/GREIS */
 #define STRFMT_NVS   10                 /* stream format: NVS NVC08C */
 #define STRFMT_BINEX 11                 /* stream format: BINEX */
-#define STRFMT_LEXR  12                 /* stream format: Furuno LPY-10000 */
-#define STRFMT_SIRF  13                 /* stream format: SiRF    (reserved) */
-#define STRFMT_RINEX 14                 /* stream format: RINEX */
-#define STRFMT_SP3   15                 /* stream format: SP3 */
-#define STRFMT_RNXCLK 16                /* stream format: RINEX CLK */
-#define STRFMT_SBAS  17                 /* stream format: SBAS messages */
-#define STRFMT_NMEA  18                 /* stream format: NMEA 0183 */
+#define STRFMT_OGRP  12                 /* stream format: OGRP */
+#define STRFMT_LEXR  13                 /* stream format: Furuno LPY-10000 */
+#define STRFMT_SIRF  14                 /* stream format: SiRF    (reserved) */
+#define STRFMT_RINEX 15                 /* stream format: RINEX */
+#define STRFMT_SP3   16                 /* stream format: SP3 */
+#define STRFMT_RNXCLK 17                /* stream format: RINEX CLK */
+#define STRFMT_SBAS  18                 /* stream format: SBAS messages */
+#define STRFMT_NMEA  19                 /* stream format: NMEA 0183 */
+
 #ifndef EXTLEX
-#define MAXRCVFMT    11                 /* max number of receiver format */
+#define MAXRCVFMT    12                 /* max number of receiver format */
 #else
-#define MAXRCVFMT    12
+#define MAXRCVFMT    13
 #endif
 
 #define STR_MODE_R  0x1                 /* stream mode: read */
@@ -1477,6 +1479,7 @@ extern int input_javad (raw_t *raw, unsigned char data);
 extern int input_nvs   (raw_t *raw, unsigned char data);
 extern int input_bnx   (raw_t *raw, unsigned char data);
 extern int input_lexr  (raw_t *raw, unsigned char data);
+extern int input_ogrp  (raw_t *raw, unsigned char data);
 extern int input_oem4f (raw_t *raw, FILE *fp);
 extern int input_oem3f (raw_t *raw, FILE *fp);
 extern int input_ubxf  (raw_t *raw, FILE *fp);
@@ -1488,6 +1491,7 @@ extern int input_javadf(raw_t *raw, FILE *fp);
 extern int input_nvsf  (raw_t *raw, FILE *fp);
 extern int input_bnxf  (raw_t *raw, FILE *fp);
 extern int input_lexrf (raw_t *raw, FILE *fp);
+extern int input_ogrpf (raw_t *raw, FILE *fp);
 
 extern int gen_ubx (const char *msg, unsigned char *buff);
 extern int gen_stq (const char *msg, unsigned char *buff);
