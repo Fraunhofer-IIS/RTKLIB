@@ -10,11 +10,11 @@ int get_value_check_type(json_object *jobj, char* key, json_object **value, json
     trace(5,"get_value_check_type:\n");
 
     if (json_object_object_get_ex(jobj, key, value) == 0) {
-        trace(1, "get_value_check_type: Key error, no %s\n", key);
+        trace(2, "get_value_check_type: Key error, no %s\n", key);
         return -1;
     }
     if (json_object_get_type(*value) != type) {
-        trace(1, "get_value_check_type: Value type error, key %s\n", key);
+        trace(2, "get_value_check_type: Value type error, key %s\n", key);
         return -1;
     }
     return 0;
@@ -32,7 +32,7 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
     trace(5,"decode_ogrp_ch_meas:\n");
 
     if (json_object_get_type(jobj) != json_type_object) {
-        trace(1, "decode_ogrp_ch_meas: Type error, no object\n");
+        trace(2, "decode_ogrp_ch_meas: Type error, no object\n");
         return -1;
     }
 
@@ -40,7 +40,7 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
     if (get_value_check_type(jobj, "gnss", &jgnss, json_type_string) < 0) return -1;
     if (get_value_check_type(jobj, "signal_type", &jsignal_type, json_type_string) < 0) return -1;
     if (strcmp(json_object_get_string(jgnss), "GPS") != 0 || strcmp(json_object_get_string(jsignal_type), "L1CA") != 0) {
-        trace(1, "decode_ogrp_ch_meas: GNSS/signal combination is not supported\n");
+        trace(2, "decode_ogrp_ch_meas: GNSS/signal combination is not supported\n");
         return -1;
     }
 
@@ -161,7 +161,7 @@ int decode_ogrp_raw_ephemeris(raw_t *raw, json_object *jobj) {
     if (decode_frame(sub1, &eph, NULL, NULL, NULL, NULL) != 1 ||
         decode_frame(sub2, &eph, NULL, NULL, NULL, NULL) != 2 ||
         decode_frame(sub3, &eph, NULL, NULL, NULL, NULL) != 3) {
-        trace(1,"ogrp raw_ephemeris subframe error: sat ID: %d\n", sat_id);
+        trace(2,"ogrp raw_ephemeris subframe error: sat ID: %d\n", sat_id);
         return -1;
     }
 
@@ -179,7 +179,7 @@ int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     trace(5,"decode_ogrp_timestamp:\n");
 
     if (json_object_object_get_ex(jobj, "timestamp", &timestamp) == 0) {
-        trace(1, "decode_ogrp_timestamp: Key error, no timestamp\n");
+        trace(2, "decode_ogrp_timestamp: Key error, no timestamp\n");
         return -1;
     }
 
@@ -198,7 +198,7 @@ int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
         assert(0 && "decode_ogrp_timestamp: Unix time string format is not supported yet");
         return -1;
     default:
-        trace(1, "decode_ogrp_timestamp: Value type error, key timestamp\n");
+        trace(2, "decode_ogrp_timestamp: Value type error, key timestamp\n");
         return -1;
     }
 
@@ -230,7 +230,7 @@ int decode_ogrp_msg(raw_t *raw) {
     /* TODO implement other message types */
     else
     {
-        trace(1, "decode_ogrp: Message id not supported: %s\n", id_value_str);
+        trace(2, "decode_ogrp: Message id not supported: %s\n", id_value_str);
         return -1;
     }
 }
