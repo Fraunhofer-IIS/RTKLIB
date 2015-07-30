@@ -27,7 +27,6 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
     int freq_nr = 0; /* TODO Support other frequencies */
     double tt = timediff(raw->time,raw->tobs);
     int lli;
-    int parity = 0; /* TODO Get from measurement */
     int j;
 
     trace(5,"decode_ogrp_ch_meas:\n");
@@ -65,7 +64,6 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
 
     if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat_id-1][freq_nr] + 0.05 <= tt;
     else lli = 0;
-    if (!parity) lli |= 2;
     raw->lockt[sat_id-1][freq_nr] = locktime;
 
     raw->obs.data[obs_num].P[freq_nr]    = pseudorange;
