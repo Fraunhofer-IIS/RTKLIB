@@ -85,6 +85,7 @@ static const char *help[]={
 "               nvs  = NVS NV08C BINR",
 "               binex= BINEX",
 "               rinex= RINEX",
+"               ogrp = OGRP",
 "     -ro opt   receiver options",
 "     -f freq   number of frequencies [2]",
 "     -hc comment  rinex header: comment line",
