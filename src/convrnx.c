@@ -530,11 +530,12 @@ static void set_obstype(int format, rnxopt_t *opt)
     };
     /* supported codes by OGRP */
     const unsigned char codes_ogrp[6][8]={
-        {CODE_L1C,CODE_L2P,CODE_L2D,CODE_L2X,CODE_L5Q},
-        {CODE_L1C,CODE_L2C,CODE_L2P},
-        {CODE_L1B,CODE_L1C,CODE_L5Q,CODE_L7Q,CODE_L8Q},
-        {CODE_L1C,CODE_L2X,CODE_L5Q},
-        {CODE_L1C,CODE_L5I}
+        {CODE_L1C}, /* GPS */
+        {0}, /* GLONASS */
+        {0}, /* Galileo */
+        {0}, /* QZSS */
+        {0}, /* BeiDou */
+        {0}, /* SBAS */
     };
     /* supported codes by others */
     const unsigned char codes_other[6][8]={
@@ -555,6 +556,7 @@ static void set_obstype(int format, rnxopt_t *opt)
             case STRFMT_JAVAD: codes=codes_javad[i]; break;
             case STRFMT_BINEX: codes=codes_rinex[i]; break;
             case STRFMT_RINEX: codes=codes_rinex[i]; break;
+            case STRFMT_OGRP : codes=codes_ogrp [i]; break;
             default:           codes=codes_other[i]; break;
         }
         /* set observation types in rinex option */
