@@ -68,17 +68,24 @@ static int checkpri(int freq) {
 int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     double pseudorange, doppler, carrier_phase, snr, locktime;
     int sat_id;
-    json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type;
+    json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type, *jchannel_state;
     int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
     int lli;
-    char *gnss, *signal_type;
+    char *gnss, *signal_type, *channel_state;
     int sys, code, freq;
 
     trace(5,"decode_ogrp_ch_meas:\n");
 
     if (json_object_get_type(jobj) != json_type_object) {
         trace(2, "decode_ogrp_ch_meas: Type error, no object\n");
+        return -1;
+    }
+
+    if (get_value_check_type(jobj, "channel_state", &jchannel_state, json_type_string) < 0) return -1;
+    channel_state = json_object_get_string(jchannel_state);
+    if (strcmp(channel_state, "SYNCED") != 0) {
+        trace(2, "Channel not synchronized. Skip channel measurement.\n");
         return -1;
     }
 
