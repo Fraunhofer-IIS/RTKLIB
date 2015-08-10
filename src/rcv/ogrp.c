@@ -37,6 +37,21 @@ static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *c
         trace(2, "Unsupported GPS signal %s\n", sig_str);
         return -1;
     }
+    if (strcmp(gnss_str, "Galileo") == 0) {
+        *sys = SYS_GAL;
+        if (strcmp(sig_str, "E1B") == 0) {
+            *code = CODE_L1B;
+            *freq = 0;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5aI") == 0) {
+            *code = CODE_L5I;
+            *freq = 2;
+            return 0;
+        }
+        trace(2, "Unsupported Galileo signal %s\n", sig_str);
+        return -1;
+    }
     trace(2, "Unsupported GNSS system %s\n", gnss_str);
     return -1;
 }
