@@ -72,7 +72,6 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
     int lli;
-    int j;
     char *gnss, *signal_type;
     int sys, code, freq;
 
