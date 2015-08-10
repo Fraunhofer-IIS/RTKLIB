@@ -20,14 +20,61 @@ int get_value_check_type(json_object *jobj, char* key, json_object **value, json
     return 0;
 }
 
-int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
+static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *code, int *freq) {
+    /* signal frequency:  0:L1, 1:L2, 2:L5, 3:L6, 4:L7, 5:L8 */
+    if (strcmp(gnss_str, "GPS") == 0) {
+        *sys = SYS_GPS;
+        if (strcmp(sig_str, "L1CA") == 0) {
+            *code = CODE_L1C;
+            *freq = 0;
+            return 0;
+        }
+        if (strcmp(sig_str, "L5I") == 0) {
+            *code = CODE_L5I;
+            *freq = 2;
+            return 0;
+        }
+        trace(2, "Unsupported GPS signal %s\n", sig_str);
+        return -1;
+    }
+    trace(2, "Unsupported GNSS system %s\n", gnss_str);
+    return -1;
+}
+
+static int obsindex(obs_t *obs, gtime_t time, int sat) {
+    int i,j;
+
+    if (obs->n >= MAXOBS) return -1;
+    for (i = 0; i < obs->n; i++) {
+        if (obs->data[i].sat == sat) return i;
+    }
+    obs->data[i].time = time;
+    obs->data[i].sat = sat;
+    for (j = 0; j < NFREQ + NEXOBS; j++) {
+        obs->data[i].L[j] = obs->data[i].P[j] = 0.0;
+        obs->data[i].D[j] = 0.0;
+        obs->data[i].SNR[j] = obs->data[i].LLI[j] = 0;
+        obs->data[i].code[j] = CODE_NONE;
+    }
+    obs->n++;
+    return i;
+}
+
+static int checkpri(int freq) {
+    /* TODO Consider freq >= NFREQ (e.g. E5bI) */
+    return freq < NFREQ ? freq : -1;
+}
+
+int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     double pseudorange, doppler, carrier_phase, snr, locktime;
     int sat_id;
     json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type;
-    int freq_nr = 0; /* TODO Support other frequencies */
+    int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
     int lli;
     int j;
+    char *gnss, *signal_type;
+    int sys, code, freq;
 
     trace(5,"decode_ogrp_ch_meas:\n");
 
@@ -38,10 +85,16 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
 
     /* Check supported GNSS and signal type */
     if (get_value_check_type(jobj, "gnss", &jgnss, json_type_string) < 0) return -1;
+    gnss = json_object_get_string(jgnss);
+
     if (get_value_check_type(jobj, "signal_type", &jsignal_type, json_type_string) < 0) return -1;
-    if (strcmp(json_object_get_string(jgnss), "GPS") != 0 || strcmp(json_object_get_string(jsignal_type), "L1CA") != 0) {
-        trace(2, "decode_ogrp_ch_meas: GNSS/signal combination is not supported\n");
-        return -1;
+    signal_type = json_object_get_string(jsignal_type);
+
+    if (get_system_and_signal(gnss, signal_type, &sys, &code, &freq) != 0) return -1;
+
+    freq_nr = checkpri(freq);
+    if (freq_nr == -1) {
+        trace(2, "Discard channel measurement. Signal priority is too low for %s %s\n", gnss, signal_type);
     }
 
     if (get_value_check_type(jobj, "pseudorange", &jpseudorange, json_type_double) < 0) return -1;
@@ -66,31 +119,24 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj, int obs_num) {
     else lli = 0;
     raw->lockt[sat_id-1][freq_nr] = locktime;
 
-    raw->obs.data[obs_num].P[freq_nr]    = pseudorange;
-    raw->obs.data[obs_num].D[freq_nr]    = doppler;
-    raw->obs.data[obs_num].L[freq_nr]    = -carrier_phase;
-    raw->obs.data[obs_num].SNR[freq_nr]  = snr;
-    raw->obs.data[obs_num].LLI[freq_nr]  = lli;
-    raw->obs.data[obs_num].code[freq_nr] = CODE_L1C;
+    obs_nr = obsindex(&raw->obs, raw->time, sat_id);
 
-    raw->obs.data[obs_num].time = raw->time;
-    raw->obs.data[obs_num].sat  = sat_id;
+    raw->obs.data[obs_nr].P[freq_nr]    = pseudorange;
+    raw->obs.data[obs_nr].D[freq_nr]    = doppler;
+    raw->obs.data[obs_nr].L[freq_nr]    = -carrier_phase;
+    raw->obs.data[obs_nr].SNR[freq_nr]  = snr;
+    raw->obs.data[obs_nr].LLI[freq_nr]  = lli;
+    raw->obs.data[obs_nr].code[freq_nr] = code;
 
-    for (j = 1; j < NFREQ;j++) {
-        raw->obs.data[obs_num].L[j]    = 0.0;
-        raw->obs.data[obs_num].P[j]    = 0.0;
-        raw->obs.data[obs_num].D[j]    = 0.0;
-        raw->obs.data[obs_num].SNR[j]  = 0;
-        raw->obs.data[obs_num].LLI[j]  = 0;
-        raw->obs.data[obs_num].code[j] = CODE_NONE;
-    }
+    raw->obs.data[obs_nr].time = raw->time;
+    raw->obs.data[obs_nr].sat  = sat_id;
 
     return 1;
 }
 
 int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
     json_object *ch_meas_array;
-    int i, num_ch_meas, obs_err, status;
+    int i, num_ch_meas, status;
 
     trace(5,"decode_ogrp_measurement:\n");
 
@@ -101,16 +147,13 @@ int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
     if (status < 0) num_ch_meas = 0;
     else num_ch_meas = json_object_array_length(ch_meas_array);
 
-    obs_err = 0;
     raw->obs.n = 0;
     for (i = 0; i < num_ch_meas; i++) {
         json_object *ch_meas = json_object_array_get_idx(ch_meas_array, i);
-        if (decode_ogrp_ch_meas(raw, ch_meas, i - obs_err) != 1) {
-            obs_err++;
+        if (decode_ogrp_ch_meas(raw, ch_meas) != 1) {
             continue;
         }
         if (raw->obs.n >= MAXOBS) return -1;
-        raw->obs.n++;
     }
 
     raw->tobs=raw->time;
