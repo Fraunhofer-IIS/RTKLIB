@@ -44,9 +44,29 @@ static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *c
             *freq = 0;
             return 0;
         }
+        if (strcmp(sig_str, "E1C") == 0) {
+            *code = CODE_L1C;
+            *freq = 0;
+            return 0;
+        }
         if (strcmp(sig_str, "E5aI") == 0) {
             *code = CODE_L5I;
             *freq = 2;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5aQ") == 0) {
+            *code = CODE_L5Q;
+            *freq = 2;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5bI") == 0) {
+            *code = CODE_L7I;
+            *freq = 4;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5bQ") == 0) {
+            *code = CODE_L7Q;
+            *freq = 4;
             return 0;
         }
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
