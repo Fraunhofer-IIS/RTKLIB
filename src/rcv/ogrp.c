@@ -30,8 +30,18 @@ static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *c
             *freq = 0;
             return 0;
         }
+        if (strcmp(sig_str, "L2C") == 0) {
+            *code = CODE_L2C;
+            *freq = 1;
+            return 0;
+        }
         if (strcmp(sig_str, "L5I") == 0) {
             *code = CODE_L5I;
+            *freq = 2;
+            return 0;
+        }
+        if (strcmp(sig_str, "L5Q") == 0) {
+            *code = CODE_L5Q;
             *freq = 2;
             return 0;
         }

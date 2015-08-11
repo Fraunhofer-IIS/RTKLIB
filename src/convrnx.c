@@ -530,7 +530,7 @@ static void set_obstype(int format, rnxopt_t *opt)
     };
     /* supported codes by OGRP */
     const unsigned char codes_ogrp[6][8]={
-        {CODE_L1C,CODE_L5I}, /* GPS */
+        {CODE_L1C,CODE_L2C,CODE_L5I,CODE_L5Q}, /* GPS */
         {0}, /* GLONASS */
         {CODE_L1B,CODE_L1C,CODE_L5I,CODE_L5Q,CODE_L7I,CODE_L7Q}, /* Galileo */
         {0}, /* QZSS */
