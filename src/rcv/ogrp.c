@@ -6,7 +6,7 @@
 
 const static double gpst0[]={1980,1, 6,0,0,0};
 
-int get_value_check_type(json_object *jobj, char* key, json_object **value, json_type type) {
+static int get_value_check_type(json_object *jobj, char* key, json_object **value, json_type type) {
     trace(5,"get_value_check_type:\n");
 
     if (json_object_object_get_ex(jobj, key, value) == 0) {
@@ -100,7 +100,7 @@ static int checkpri(int freq) {
     return freq < NFREQ ? freq : -1;
 }
 
-int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
+static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     double pseudorange, doppler, carrier_phase, snr, locktime;
     int sat_id;
     json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type, *jchannel_state;
@@ -175,7 +175,7 @@ int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     return 1;
 }
 
-int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
+static int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
     json_object *ch_meas_array;
     int i, num_ch_meas, status;
 
@@ -202,7 +202,7 @@ int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
     return 1;
 }
 
-int get_subframe(json_object *subframes, int num, unsigned char *sub, int sub_size) {
+static int get_subframe(json_object *subframes, int num, unsigned char *sub, int sub_size) {
     json_object *jsub;
     char *pos;
     size_t count = 0;
@@ -222,7 +222,7 @@ int get_subframe(json_object *subframes, int num, unsigned char *sub, int sub_si
     return 0;
 }
 
-int decode_ogrp_raw_ephemeris(raw_t *raw, json_object *jobj) {
+static int decode_ogrp_raw_ephemeris(raw_t *raw, json_object *jobj) {
     json_object *subframes, *jsat_id;
     int num_subframes, sat_id, sub_size = 30;
     unsigned char sub1[sub_size], sub2[sub_size], sub3[sub_size];
@@ -256,7 +256,7 @@ int decode_ogrp_raw_ephemeris(raw_t *raw, json_object *jobj) {
     return 2;
 }
 
-int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
+static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     json_object* timestamp;
     json_type type;
 
@@ -289,7 +289,7 @@ int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     return 1;
 }
 
-int decode_ogrp_msg(raw_t *raw) {
+static int decode_ogrp_msg(raw_t *raw) {
     json_object *jobj, *id_value;
     json_type type;
     const char *id_value_str;
