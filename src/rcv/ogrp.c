@@ -5,6 +5,7 @@
 #include <string.h>
 
 const static double gpst0[]={1980,1, 6,0,0,0};
+const static unsigned subframe_bytes_without_parity = 30;
 
 static int get_value_check_type(json_object *jobj, char* key, json_object **value, json_type type) {
     trace(5,"get_value_check_type:\n");
@@ -202,58 +203,99 @@ static int decode_ogrp_measurement(raw_t *raw, json_object *jobj) {
     return 1;
 }
 
-static int get_subframe(json_object *subframes, int num, unsigned char *sub, int sub_size) {
-    json_object *jsub;
-    char *pos;
-    size_t count = 0;
+static int save_subfrm(int sat, raw_t *raw, unsigned char *data) {
+    unsigned char *q;
+    int i, id;
 
-    if (sub_size != 30) return -1;
+    trace(4,"save_subfrm: sat=%2d\n", sat);
 
-    jsub = json_object_array_get_idx(subframes, num);
-    if (json_object_get_type(jsub) != json_type_string) return -1;
-    pos = json_object_get_string(jsub);
-    if (strlen(pos) != sub_size * 2) return -1;
-
-    for(count = 0; count < sub_size; count++) {
-        sscanf(pos, "%2hhx", &sub[count]);
-        pos += 2 * sizeof(char);
+    /* check navigation subframe preamble */
+    if (data[0] != 0x8B) {
+        trace(2,"stq subframe preamble error: 0x%02X\n", data[0]);
+        return 0;
     }
+    id = (data[5] >> 2) & 0x7;
 
+    /* check subframe id */
+    if (id < 1 || 5 < id) {
+        trace(2,"stq subframe id error: id=%d\n", id);
+        return 0;
+    }
+    q = raw->subfrm[satno(SYS_GPS, sat) - 1] + (id - 1) * subframe_bytes_without_parity;
+
+    for (i = 0; i < subframe_bytes_without_parity; i++) q[i] = data[i];
+
+    return id;
+}
+
+static int decode_ephem_gps(int sat, raw_t *raw) {
+    eph_t eph = {0};
+
+    trace(4,"decode_ephem_gps: sat=%2d\n", sat);
+
+    if (decode_frame(raw->subfrm[satno(SYS_GPS, sat) - 1] + (subframe_bytes_without_parity * 0), &eph, NULL, NULL, NULL, NULL) != 1 ||
+        decode_frame(raw->subfrm[satno(SYS_GPS, sat) - 1] + (subframe_bytes_without_parity * 1), &eph, NULL, NULL, NULL, NULL) != 2 ||
+        decode_frame(raw->subfrm[satno(SYS_GPS, sat) - 1] + (subframe_bytes_without_parity * 2), &eph, NULL, NULL, NULL, NULL) != 3) return 0;
+
+    if (eph.iode == raw->nav.eph[satno(SYS_GPS, sat) - 1].iode) return 0; /* unchanged */
+    eph.sat = satno(SYS_GPS, sat);
+    raw->nav.eph[satno(SYS_GPS, sat) - 1] = eph;
+    raw->ephsat = satno(SYS_GPS, sat);
+    return 2;
+}
+
+static int decode_ogrp_raw_nav_msg_gps_l1ca(raw_t *raw, unsigned char *data, int nav_msg_id, int sat_id) {
+    int sub_id;
+    sub_id = save_subfrm(sat_id, raw, data);
+    if (sub_id != nav_msg_id) {
+        trace(2,"GPS subframe error\n");
+        return -1;
+    }
+    if (sub_id == 3) return decode_ephem_gps(sat_id, raw);
+    /* TODO decode subframe 4 and 5 */
     return 0;
 }
 
-static int decode_ogrp_raw_ephemeris(raw_t *raw, json_object *jobj) {
-    json_object *subframes, *jsat_id;
-    int num_subframes, sat_id, sub_size = 30;
-    unsigned char sub1[sub_size], sub2[sub_size], sub3[sub_size];
-    eph_t eph={0};
+static int decode_ogrp_raw_nav_msg(raw_t *raw, json_object *jobj) {
+    int sat_id, nr_bits, nav_msg_id, nr_bytes, count;
+    char *gnss, *signal_type, *data_temp;
+    json_object *jgnss, *jsignal_type, *jsat_id, *jnr_bits, *jnav_msg_id, *jdata;
 
-    trace(5,"decode_ogrp_raw_ephemeris:\n");
+    trace(5,"decode_ogrp_raw_nav_msg:\n");
 
-    if (get_value_check_type(jobj, "subframe", &subframes, json_type_array) < 0) return -1;
+    if (get_value_check_type(jobj, "gnss", &jgnss, json_type_string) < 0) return -1;
+    gnss = json_object_get_string(jgnss);
 
-    num_subframes = json_object_array_length(subframes);
-    if (num_subframes != 3) return -1;
+    if (get_value_check_type(jobj, "signal_type", &jsignal_type, json_type_string) < 0) return -1;
+    signal_type = json_object_get_string(jsignal_type);
+
+    if (get_value_check_type(jobj, "nr_bits", &jnr_bits, json_type_int) < 0) return -1;
+    nr_bits = json_object_get_int(jnr_bits);
+
+    nr_bytes = (int)((float)(nr_bits) / 8.f);
+    if ((float)(nr_bits) / 8.f - (int)((float)(nr_bits) / 8.f) > 0.f) nr_bytes++;
+    unsigned char data[nr_bytes];
+
+    if (get_value_check_type(jobj, "data", &jdata, json_type_string) < 0) return -1;
+    data_temp = json_object_get_string(jdata);
+    if (strlen(data_temp) != nr_bytes * 2) return -1;
+    for(count = 0; count < nr_bytes; count++) {
+        sscanf(data_temp, "%2hhx", &data[count]);
+        data_temp += 2 * sizeof(char);
+    }
+
+    if (get_value_check_type(jobj, "nav_msg_id", &jnav_msg_id, json_type_int) < 0) return -1;
+    nav_msg_id = json_object_get_int(jnav_msg_id);
 
     if (get_value_check_type(jobj, "sat_id", &jsat_id, json_type_int) < 0) return -1;
     sat_id = json_object_get_int(jsat_id);
 
-    if (get_subframe(subframes, 0, sub1, sub_size) < 0) return -1;
-    if (get_subframe(subframes, 1, sub2, sub_size) < 0) return -1;
-    if (get_subframe(subframes, 2, sub3, sub_size) < 0) return -1;
-
-    if (decode_frame(sub1, &eph, NULL, NULL, NULL, NULL) != 1 ||
-        decode_frame(sub2, &eph, NULL, NULL, NULL, NULL) != 2 ||
-        decode_frame(sub3, &eph, NULL, NULL, NULL, NULL) != 3) {
-        trace(2,"ogrp raw_ephemeris subframe error: sat ID: %d\n", sat_id);
-        return -1;
+    if (strcmp(gnss, "GPS") == 0 && strcmp(signal_type, "L1CA") == 0) {
+        return decode_ogrp_raw_nav_msg_gps_l1ca(raw, data, nav_msg_id, sat_id);
     }
 
-    eph.sat = sat_id;
-    raw->nav.eph[sat_id - 1] = eph;
-    raw->ephsat = sat_id;
-
-    return 2;
+    trace(2, "Unsupported raw navigation message: %s %s\n", gnss, signal_type);
+    return -1;
 }
 
 static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
@@ -310,7 +352,7 @@ static int decode_ogrp_msg(raw_t *raw) {
 
     id_value_str = json_object_get_string(id_value);
     if (strcmp(id_value_str, "measurement") == 0) return decode_ogrp_measurement(raw, jobj);
-    if (strcmp(id_value_str, "raw_ephemeris") == 0) return decode_ogrp_raw_ephemeris(raw, jobj);
+    if (strcmp(id_value_str, "raw_nav_msg") == 0) return decode_ogrp_raw_nav_msg(raw, jobj);
     /* TODO implement other message types */
     else
     {
