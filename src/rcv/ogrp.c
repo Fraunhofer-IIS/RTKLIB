@@ -115,7 +115,7 @@ static int checkpri(int freq) {
 
 static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     double pseudorange, doppler, carrier_phase, snr, locktime;
-    int sat_id;
+    int sat_id, sat;
     json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type, *jchannel_state;
     int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
@@ -165,15 +165,19 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
 
     if (get_value_check_type(jobj, "sat_id", &jsat_id, json_type_int) < 0) return -1;
     sat_id = json_object_get_int(jsat_id);
+    if (!(sat = satno(sys, sat_id))) {
+        trace(3,"satellite number error: sys=%d, sat_id=%d\n", sys, sat_id);
+        return -1;
+    }
 
     if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_double) < 0) return -1;
     locktime = json_object_get_double(jlocktime);
 
-    if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat_id-1][freq_nr] + 0.05 <= tt;
+    if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat - 1][freq_nr] + 0.05 <= tt;
     else lli = 0;
-    raw->lockt[sat_id-1][freq_nr] = locktime;
+    raw->lockt[sat - 1][freq_nr] = locktime;
 
-    obs_nr = obsindex(&raw->obs, raw->time, sat_id);
+    obs_nr = obsindex(&raw->obs, raw->time, sat);
 
     raw->obs.data[obs_nr].P[freq_nr]    = pseudorange;
     raw->obs.data[obs_nr].D[freq_nr]    = doppler;
@@ -183,7 +187,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     raw->obs.data[obs_nr].code[freq_nr] = code;
 
     raw->obs.data[obs_nr].time = raw->time;
-    raw->obs.data[obs_nr].sat  = sat_id;
+    raw->obs.data[obs_nr].sat  = sat;
 
     return 1;
 }
