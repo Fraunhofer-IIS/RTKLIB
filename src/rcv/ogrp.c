@@ -6,6 +6,18 @@
 
 const static double gpst0[]={1980,1, 6,0,0,0};
 const static unsigned subframe_bytes_without_parity = 30;
+/* Number of bits is 2*(120-6)=228 */
+const static unsigned inav_page_bytes_without_tail = 29;
+
+/* Copy from src/rcv/novatel.c */
+static gtime_t adjweek(gtime_t time, double tow) {
+    double tow_p;
+    int week;
+    tow_p = time2gpst(time,&week);
+    if      (tow < tow_p - 302400.0) tow += 604800.0;
+    else if (tow > tow_p + 302400.0) tow -= 604800.0;
+    return gpst2time(week, tow);
+}
 
 static int get_value_check_type(json_object *jobj, char* key, json_object **value, json_type type) {
     trace(5,"get_value_check_type:\n");
@@ -228,6 +240,32 @@ static int save_subfrm(int sat, raw_t *raw, unsigned char *data) {
     return id;
 }
 
+static int save_page(int prn, raw_t *raw, unsigned char *data) {
+    unsigned char *q;
+    int i, type, sat;
+
+    sat = satno(SYS_GAL, prn);
+
+    trace(4,"save_page: sat=%2d\n", sat);
+
+    type = data[0] & 0x3F;
+
+    /* check word type */
+    if (type < 0 || 10 < type) {
+        trace(2,"Galileo word type error: type=%d\n", type);
+        return -1;
+    }
+
+    /* Only the ephemeris data (page 1-4) and TOW page (5) is stored and decoded, for now */
+    if (type < 1 || 5 < type) return -1;
+
+    /* Re-use the GPS subframe buffer for Galileo INAV pages */
+    q = raw->subfrm[sat - 1] + (type - 1) * inav_page_bytes_without_tail;
+    for (i = 0; i < inav_page_bytes_without_tail; i++) q[i] = data[i];
+
+    return type;
+}
+
 static int decode_ephem_gps(int sat, raw_t *raw) {
     eph_t eph = {0};
 
@@ -244,6 +282,72 @@ static int decode_ephem_gps(int sat, raw_t *raw) {
     return 2;
 }
 
+static int decode_ephem_galileo(int prn, raw_t *raw) {
+    eph_t eph = {0};
+    int i, j, sat, week;
+    const unsigned nr_ephem_pages_and_tow = 5;
+    const unsigned word_len_bytes = 16;
+    unsigned char words[nr_ephem_pages_and_tow][word_len_bytes];
+    unsigned *data;
+    double sqrtA, tow;
+
+    sat = satno(SYS_GAL, prn);
+
+    trace(4,"decode_ephem_galileo: sat=%2d\n", sat);
+
+    for (i = 0; i < nr_ephem_pages_and_tow; i++) {
+        data = raw->subfrm[sat - 1] + inav_page_bytes_without_tail * i;
+        /* Extract word bytes from even page part */
+        for (j = 0; j < word_len_bytes - 2; j++) words[i][j] = ((data[j] << 2) & 0xFC) | ((data[j + 1] >> 6) & 0x03);
+        /* Extract word bytes from odd page part */
+        words[i][14] = ((data[14] << 4) & 0xF0) | ((data[15] >> 4) & 0x0F);
+        words[i][15] = ((data[15] << 4) & 0xF0) | ((data[16] >> 4) & 0x0F);
+        /* Check the word type */
+        if (getbitu(words[i], 0, 6) != (i + 1)) {
+            trace(2,"Galileo word type error: type=%d\n", (i + 1));
+            return -1;
+        }
+    }
+
+    eph.code   = 0; /* INAV=0, FNAV=1 */
+    eph.iode   = getbitu(words[1 - 1],   6, 10);
+    eph.iodc   = eph.iode;
+    eph.toes   = getbitu(words[1 - 1],  16, 14);
+    sqrtA      = getbitu(words[1 - 1],  94, 32);
+    eph.A      = sqrtA * sqrtA;
+    eph.e      = getbitu(words[1 - 1],  62, 32);
+    eph.i0     = getbitu(words[2 - 1],  48, 32);
+    eph.OMG0   = getbitu(words[2 - 1],  16, 32);
+    eph.omg    = getbitu(words[2 - 1],  80, 32);
+    eph.M0     = getbitu(words[1 - 1],  30, 32);
+    eph.deln   = getbitu(words[3 - 1],  40, 16);
+    eph.OMGd   = getbitu(words[3 - 1],  16, 24);
+    eph.idot   = getbitu(words[2 - 1], 112, 14);
+    eph.crc    = getbitu(words[3 - 1],  88, 16);
+    eph.crs    = getbitu(words[3 - 1], 104, 16);
+    eph.cuc    = getbitu(words[3 - 1],  56, 16);
+    eph.cus    = getbitu(words[3 - 1],  72, 16);
+    eph.cic    = getbitu(words[4 - 1],  22, 16);
+    eph.cis    = getbitu(words[4 - 1],  38, 16);
+    eph.f0     = getbitu(words[4 - 1],  68, 31);
+    eph.f1     = getbitu(words[4 - 1],  99, 21);
+    eph.f2     = getbitu(words[4 - 1], 120,  6);
+    eph.tgd[0] = getbitu(words[5 - 1],  47, 10); /* BGD: E5A-E1 (s) */
+    eph.tgd[1] = getbitu(words[5 - 1],  57, 10); /* BGD: E5B-E1 (s) */
+
+    /* Compare to decode_galephemerisb in src/rcv/novatel.c */
+    tow = time2gpst(raw->time, &week);
+    eph.week   = week;
+    eph.toe    = gpst2time(eph.week, eph.toes);
+    eph.ttr    = adjweek(eph.toe, tow);
+    eph.toc    = adjweek(eph.toe, getbitu(words[4 - 1],  54, 14));
+
+    eph.sat = sat;
+    raw->nav.eph[sat - 1] = eph;
+    raw->ephsat = sat;
+    return 2;
+}
+
 static int decode_ogrp_raw_nav_msg_gps_l1ca(raw_t *raw, unsigned char *data, int nav_msg_id, int sat_id) {
     int sub_id;
     sub_id = save_subfrm(sat_id, raw, data);
@@ -253,6 +357,17 @@ static int decode_ogrp_raw_nav_msg_gps_l1ca(raw_t *raw, unsigned char *data, int
     }
     if (sub_id == 3) return decode_ephem_gps(sat_id, raw);
     /* TODO decode subframe 4 and 5 */
+    return 0;
+}
+
+static int decode_ogrp_raw_nav_msg_galileo_e1b(raw_t *raw, unsigned char *data, int nav_msg_id, int sat_id) {
+    int word_type;
+    word_type = save_page(sat_id, raw, data);
+    if (word_type != nav_msg_id) {
+        trace(2,"Galileo page error\n");
+        return -1;
+    }
+    if (word_type == 4) return decode_ephem_galileo(sat_id, raw);
     return 0;
 }
 
@@ -292,6 +407,8 @@ static int decode_ogrp_raw_nav_msg(raw_t *raw, json_object *jobj) {
 
     if (strcmp(gnss, "GPS") == 0 && strcmp(signal_type, "L1CA") == 0) {
         return decode_ogrp_raw_nav_msg_gps_l1ca(raw, data, nav_msg_id, sat_id);
+    } else if (strcmp(gnss, "Galileo") == 0 && strcmp(signal_type, "E1B") == 0) {
+        return decode_ogrp_raw_nav_msg_galileo_e1b(raw, data, nav_msg_id, sat_id);
     }
 
     trace(2, "Unsupported raw navigation message: %s %s\n", gnss, signal_type);
