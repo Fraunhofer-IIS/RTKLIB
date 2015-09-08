@@ -51,7 +51,8 @@
 #define PLOT_SKY    7                   // plot-type: sky-plot
 #define PLOT_DOP    8                   // plot-type: dop-plot
 #define PLOT_SNR    9                   // plot-type: snr/mp-plot
-#define PLOT_SNRE   10                  // plot-type: snr-el-plot
+#define PLOT_SNRE   10                  // plot-type: snr/mp-el-plot
+#define PLOT_MPS    11                  // plot-type: mp-skyplot
 
 #define ORG_STARTPOS 0                  // plot-origin: start position
 #define ORG_ENDPOS  1                   // plot-origin: end position
@@ -227,6 +228,10 @@ __published:
 	TSpeedButton *BtnGM;
 	TMenuItem *MenuSaveSnrMp;
 	TMenuItem *MenuGM;
+	TMenuItem *MenuOpenSkyImage;
+	TMenuItem *MenuSkyImg;
+	TSpeedButton *BtnShowSkyplot;
+	TMenuItem *MenuShowSkyplot;
 	
 	void __fastcall FormCreate			(TObject *Sender);
 	void __fastcall FormShow			(TObject *Sender);
@@ -328,6 +333,10 @@ __published:
 	void __fastcall BtnGMClick(TObject *Sender);
 	void __fastcall MenuGMClick(TObject *Sender);
 	void __fastcall MenuSaveSnrMpClick(TObject *Sender);
+	void __fastcall MenuOpenSkyImageClick(TObject *Sender);
+	void __fastcall MenuSkyImgClick(TObject *Sender);
+	void __fastcall MenuShowSkyplotClick(TObject *Sender);
+	void __fastcall BtnShowSkyplotClick(TObject *Sender);
 
 
 protected:
@@ -336,6 +345,8 @@ protected:
 private:
 	Graphics::TBitmap *Buff;
     Graphics::TBitmap *MapImage;
+    Graphics::TBitmap *SkyImageI;
+    Graphics::TBitmap *SkyImageR;
     TGraph *GraphT;
     TGraph *GraphG[3];
     TGraph *GraphR;
@@ -451,12 +462,13 @@ private:
     void __fastcall DrawObs      (int level);
     void __fastcall DrawObsSlip  (double *yp);
     void __fastcall DrawObsEphem (double *yp);
+    void __fastcall DrawSkyImage (int level);
     void __fastcall DrawSky      (int level);
     void __fastcall DrawDop      (int level);
     void __fastcall DrawDopStat  (double *dop, int *ns, int n);
     void __fastcall DrawSnr      (int level);
     void __fastcall DrawSnrE     (int level);
-    void __fastcall DrawMpE      (int level);
+    void __fastcall DrawMpS      (int level);
     
     AnsiString __fastcall U2A    (UnicodeString str);
     UnicodeString __fastcall A2U (AnsiString str);
@@ -475,6 +487,7 @@ private:
     TColor __fastcall ObsColor   (const obsd_t *obs, double az, double el);
     TColor __fastcall SysColor   (int sat);
     TColor __fastcall SnrColor   (double snr);
+    TColor __fastcall MpColor    (double mp);
     void __fastcall ReadStaPos   (const char *file, const char *sta, double *rr);
     int  __fastcall SearchPos    (int x, int y);
     void __fastcall TimeSpan     (gtime_t *ts, gtime_t *te, double *tint);
@@ -494,6 +507,7 @@ private:
 public:
     AnsiString IniFile;
     AnsiString MapImageFile;
+    AnsiString SkyImageFile;
     AnsiString RnxOpts;
     tle_t TLEData;
     
@@ -522,6 +536,10 @@ public:
     double MapScaleX,MapScaleY;
     double MapLat,MapLon;
     
+    // sky image options 
+    int SkySize[2],SkyDestCorr,SkyElMask,SkyRes,SkyFlip;
+    double SkyCent[2],SkyScale,SkyScaleR,SkyFov[3],SkyDest[10];
+    
     // plot options 
     int TimeLabel;
     int LatLonFmt;
@@ -532,7 +550,7 @@ public:
     double ElMask;
     int ElMaskP;
     int HideLowSat;
-    double MaxDop;
+    double MaxDop,MaxMP;
     int NavSys;
     AnsiString ExSats;
     int ShowErr;
@@ -573,12 +591,15 @@ public:
     void __fastcall ReadObs    (TStrings *files);
     void __fastcall ReadNav    (TStrings *files);
     void __fastcall ReadMapData(AnsiString file);
+    void __fastcall ReadSkyData(AnsiString file);
+    void __fastcall ReadSkyTag (AnsiString file);
+    void __fastcall UpdateSky  (void);
     void __fastcall ReadElMaskData(AnsiString file);
     int __fastcall GetCurrentPos(double *rr);
     int __fastcall GetCenterPos(double *rr);
     void __fastcall UpdatePlot(void);
     void __fastcall Refresh_GEView(void);
-    void __fastcall Refresh_GMView(void);
+	void __fastcall Refresh_GMView(void);
 };
 //---------------------------------------------------------------------------
 extern PACKAGE TPlot *Plot;

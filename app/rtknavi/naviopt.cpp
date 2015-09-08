@@ -46,7 +46,7 @@ static char proxyaddr[MAXSTR]="";       /* proxy address */
 #define FLGOPT  "0:off,1:std+2:age/ratio/ns"
 #define ISTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,7:ntripcli,8:ftp,9:http"
 #define OSTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripsvr"
-#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:gw10,9:javad,15:sp3"
+#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:gw10,9:javad,10:nvs,11:binex,12:rt17,15:sp3"
 #define NMEOPT  "0:off,1:latlon,2:single"
 #define SOLOPT  "0:llh,1:xyz,2:enu,3:nmea"
 #define MSGOPT  "0:all,1:rover,2:base,3:corr"
@@ -413,6 +413,7 @@ void __fastcall TOptDialog::GetOpt(void)
 	SatEphem	 ->ItemIndex=PrcOpt.sateph;
 	AmbRes		 ->ItemIndex=PrcOpt.modear;
 	GloAmbRes	 ->ItemIndex=PrcOpt.glomodear;
+	BdsAmbRes	 ->ItemIndex=PrcOpt.bdsmodear;
 	ValidThresAR ->Text     =s.sprintf("%.1f",PrcOpt.thresar[0]);
 	OutCntResetAmb->Text    =s.sprintf("%d",  PrcOpt.maxout);
 	LockCntFixAmb->Text     =s.sprintf("%d",  PrcOpt.minlock);
@@ -509,6 +510,7 @@ void __fastcall TOptDialog::GetOpt(void)
 	ProxyAddrE   ->Text     =ProxyAddr;
 	MoniPortE    ->Text     =s.sprintf("%d",MoniPort);
 	SolBuffSizeE ->Text     =s.sprintf("%d",SolBuffSize);
+	PanelStackE  ->ItemIndex=PanelStack;
 	
 	FontLabel->Font->Assign(PosFont);
 	FontLabel->Caption=FontLabel->Font->Name+s.sprintf(" %dpt",FontLabel->Font->Size);
@@ -531,6 +533,7 @@ void __fastcall TOptDialog::SetOpt(void)
 	PrcOpt.sateph    =SatEphem    ->ItemIndex;
 	PrcOpt.modear    =AmbRes      ->ItemIndex;
 	PrcOpt.glomodear =GloAmbRes   ->ItemIndex;
+	PrcOpt.bdsmodear =BdsAmbRes   ->ItemIndex;
 	PrcOpt.thresar[0]=str2dbl(ValidThresAR->Text);
 	PrcOpt.maxout    =OutCntResetAmb->Text.ToInt();
 	PrcOpt.minlock   =LockCntFixAmb->Text.ToInt();
@@ -627,6 +630,7 @@ void __fastcall TOptDialog::SetOpt(void)
 	PrcOpt.sbassatsel=SbasSatE    ->Text.ToInt();
 	ProxyAddr        =ProxyAddrE  ->Text;
 	MoniPort         =MoniPortE   ->Text.ToInt();
+	PanelStack       =PanelStackE ->ItemIndex;
 	PosFont->Assign(FontLabel->Font);
 	UpdateEnable();
 }
@@ -708,6 +712,7 @@ void __fastcall TOptDialog::LoadOpt(AnsiString file)
 	
 	AmbRes		 ->ItemIndex	=prcopt.modear;
 	GloAmbRes	 ->ItemIndex	=prcopt.glomodear;
+	BdsAmbRes	 ->ItemIndex	=prcopt.bdsmodear;
 	ValidThresAR ->Text			=s.sprintf("%.1f",prcopt.thresar[0]);
 	OutCntResetAmb->Text		=s.sprintf("%d"  ,prcopt.maxout   );
 	FixCntHoldAmb->Text			=s.sprintf("%d"  ,prcopt.minfix   );
@@ -870,6 +875,7 @@ void __fastcall TOptDialog::SaveOpt(AnsiString file)
 	
 	prcopt.modear	=AmbRes		->ItemIndex;
 	prcopt.glomodear=GloAmbRes	->ItemIndex;
+	prcopt.bdsmodear=BdsAmbRes	->ItemIndex;
 	prcopt.thresar[0]=str2dbl(ValidThresAR->Text);
 	prcopt.maxout	=str2dbl(OutCntResetAmb->Text);
 	prcopt.minfix	=str2dbl(FixCntHoldAmb->Text);
@@ -962,6 +968,7 @@ void __fastcall TOptDialog::UpdateEnable(void)
 	
 	AmbRes         ->Enabled=ar;
 	GloAmbRes      ->Enabled=ar&&AmbRes->ItemIndex>0&&NavSys2->Checked;
+	BdsAmbRes      ->Enabled=ar&&AmbRes->ItemIndex>0&&NavSys6->Checked;
 	ValidThresAR   ->Enabled=ar&&AmbRes->ItemIndex>=1&&AmbRes->ItemIndex<4;
 	ThresAR2       ->Enabled=ar&&AmbRes->ItemIndex>=4;
 	ThresAR3       ->Enabled=ar&&AmbRes->ItemIndex>=4;
@@ -1096,6 +1103,12 @@ void __fastcall TOptDialog::ReadAntList(void)
 	RefAnt->Items=list;
 	
 	free(pcvs.pcv);
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TOptDialog::NavSys6Click(TObject *Sender)
+{
+	UpdateEnable();
 }
 //---------------------------------------------------------------------------
 

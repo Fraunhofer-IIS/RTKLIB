@@ -58,6 +58,7 @@ void __fastcall TPlot::UpdateDisp(void)
             case  PLOT_RES : DrawRes (level);   break;
             case  PLOT_SNR : DrawSnr (level);   break;
             case  PLOT_SNRE: DrawSnrE(level);   break;
+            case  PLOT_MPS : DrawMpS (level);   break;
         }
         Buff->SetSize(Disp->ClientWidth,Disp->ClientHeight);
         Buff->Canvas->CopyRect(r,c,r);
@@ -992,6 +993,41 @@ void __fastcall TPlot::DrawObsEphem(double *yp)
         }
     }
 }
+// draw sky-image on sky-plot -----------------------------------------------
+void __fastcall TPlot::DrawSkyImage(int level)
+{
+    TCanvas *c=Disp->Canvas;
+    TPoint p1,p2;
+    double xl[2],yl[2],r,s,mx[190],my[190];
+    
+    trace(3,"DrawSkyImage: level=%d\n",level);
+    
+    if (SkySize[0]<=0||SkySize[1]<=0) return;
+    
+    GraphS->GetLim(xl,yl);
+    r=(xl[1]-xl[0]<yl[1]-yl[0]?xl[1]-xl[0]:yl[1]-yl[0])*0.45;
+    s=r*SkyImageR->Width/2.0/SkyScaleR;
+    GraphS->ToPoint(-s,s,p1);
+    GraphS->ToPoint(s,-s,p2);
+    TRect rect(p1,p2);
+    c->StretchDraw(rect,SkyImageR);
+    
+    if (SkyElMask) { // elevation mask
+        int n=0;
+        
+        mx[n]=0.0;   my[n++]=yl[1];
+        for (int i=0;i<=180;i++) {
+            mx[n  ]=r*sin(i*2.0*D2R);
+            my[n++]=r*cos(i*2.0*D2R);
+        }
+        mx[n]=0.0;   my[n++]=yl[1];
+        mx[n]=xl[0]; my[n++]=yl[1];
+        mx[n]=xl[0]; my[n++]=yl[0];
+        mx[n]=xl[1]; my[n++]=yl[0];
+        mx[n]=xl[1]; my[n++]=yl[1];
+        GraphS->DrawPatch(mx,my,n,CColor[0],CColor[0],0);
+    }
+}
 // draw sky-plot ------------------------------------------------------------
 void __fastcall TPlot::DrawSky(int level)
 {
@@ -1010,8 +1046,13 @@ void __fastcall TPlot::DrawSky(int level)
     
     GraphS->GetLim(xl,yl);
     r=(xl[1]-xl[0]<yl[1]-yl[0]?xl[1]-xl[0]:yl[1]-yl[0])*0.45;
-    GraphS->DrawSkyPlot(0.0,0.0,CColor[1],CColor[2],r*2.0);
     
+    if (BtnShowMap->Down) {
+        DrawSkyImage(level);
+    }
+    if (BtnShowSkyplot->Down) {
+        GraphS->DrawSkyPlot(0.0,0.0,CColor[1],CColor[2],CColor[0],r*2.0);
+    }
     if (!BtnSol1->Down) return;
     
     GraphS->GetScale(xs,ys);
@@ -1098,7 +1139,7 @@ void __fastcall TPlot::DrawSky(int level)
             x[i]=r*sin(i*D2R)*(1.0-2.0*ElMaskData[i]/PI);
             y[i]=r*cos(i*D2R)*(1.0-2.0*ElMaskData[i]/PI);
         }
-        GraphS->DrawPoly(x,y,361,CColor[2],0);
+        GraphS->DrawPoly(x,y,361,CColor[1],0);
         delete [] x;
         delete [] y;
     }
@@ -1519,13 +1560,15 @@ void __fastcall TPlot::DrawSnrE(int level)
     
     trace(3,"DrawSnrE: level=%d\n",level);
     
+    yl[1][0]=-MaxMP; yl[1][1]=MaxMP;
+    
     for (i=0;i<2;i++) if (btn[i]->Down) j=i;
     for (i=0;i<2;i++) {
         if (!btn[i]->Down) continue;
         GraphE[i]->XLPos=i==j?1:0;
         GraphE[i]->YLPos=1;
         GraphE[i]->SetLim(xl,yl[i]);
-        GraphE[i]->SetTick(0.0,5.0);
+        GraphE[i]->SetTick(0.0,0.0);
         GraphE[i]->DrawAxis(1,1);
         
         GraphE[i]->GetPos(p1,p2);
@@ -1558,7 +1601,7 @@ void __fastcall TPlot::DrawSnrE(int level)
                 if (k>=NFREQ+NEXOBS) continue;
                 if (El[j]<=0.0) continue;
                 
-                x[0][n[0]]=x[1][n[0]]=El[j]*R2D;
+                x[0][n[0]]=x[1][n[1]]=El[j]*R2D;
                 
                 y[0][n[0]]=Obs.data[j].SNR[k]*0.25;
                 y[1][n[1]]=!Mp[k]?0.0:Mp[k][j];
@@ -1643,6 +1686,79 @@ void __fastcall TPlot::DrawSnrE(int level)
         }
     }
 }
+// draw mp-skyplot ----------------------------------------------------------
+void __fastcall TPlot::DrawMpS(int level)
+{
+    AnsiString ObsTypeText=ObsType2->Text,s;
+    TColor col;
+    obsd_t *obs;
+    double x,y,xp,yp,xs,ys,xl[2],yl[2],p[MAXSAT][2]={{0}},r;
+    int i,j,sat,ind=ObsIndex;
+    char *code=ObsTypeText.c_str()+1,id[32];
+    
+    trace(3,"DrawSnrS: level=%d\n",level);
+    
+    GraphS->GetLim(xl,yl);
+    r=(xl[1]-xl[0]<yl[1]-yl[0]?xl[1]-xl[0]:yl[1]-yl[0])*0.45;
+    
+    if (BtnShowMap->Down) {
+        DrawSkyImage(level);
+    }
+    if (BtnShowSkyplot->Down) {
+        GraphS->DrawSkyPlot(0.0,0.0,CColor[1],CColor[2],CColor[0],r*2.0);
+    }
+    if (!BtnSol1->Down||NObs<=0||SimObs) return;
+    
+    GraphS->GetScale(xs,ys);
+    
+    for (sat=1;sat<=MAXSAT;sat++) {
+        if (SatMask[sat-1]||!SatSel[sat-1]) continue;
+        
+        for (i=0;i<Obs.n;i++) {
+            if (Obs.data[i].sat!=sat) continue;
+            
+            for (j=0;j<NFREQ+NEXOBS;j++) {
+                if (strstr(code2obs(Obs.data[i].code[j],NULL),code)) break;
+            }
+            if (j>=NFREQ+NEXOBS) continue;
+            if (El[i]<=0.0) continue;
+            
+            x=r*sin(Az[i])*(1.0-2.0*El[i]/PI);
+            y=r*cos(Az[i])*(1.0-2.0*El[i]/PI);
+            xp=p[sat-1][0];
+            yp=p[sat-1][1];
+            col=MpColor(!Mp[j]?0.0:Mp[j][i]);
+            
+            if ((x-xp)*(x-xp)+(y-yp)*(y-yp)>=xs*xs) {
+                int siz=PlotStyle<2?MarkSize:1;
+                GraphS->DrawMark(x,y,0,col,siz,0);
+                GraphS->DrawMark(x,y,0,PlotStyle<2?col:CColor[3],siz,0);
+                p[sat-1][0]=x;
+                p[sat-1][1]=y;
+            }
+        }
+    }
+    if (BtnShowTrack->Down&&0<=ind&&ind<NObs) {
+        
+        for (i=IndexObs[ind];i<Obs.n&&i<IndexObs[ind+1];i++) {
+            obs=&Obs.data[i];
+            if (SatMask[obs->sat-1]||!SatSel[obs->sat-1]||El[i]<=0.0) continue;
+            for (j=0;j<NFREQ+NEXOBS;j++) {
+                if (strstr(code2obs(obs->code[j],NULL),code)) break;
+            }
+            if (j>=NFREQ+NEXOBS) continue;
+            col=MpColor(!Mp[j]?0.0:Mp[j][i]);
+            
+            x=r*sin(Az[i])*(1.0-2.0*El[i]/PI);
+            y=r*cos(Az[i])*(1.0-2.0*El[i]/PI);
+            
+            satno2id(obs->sat,id);
+            GraphS->DrawMark(x,y,0,col,Disp->Font->Size*2+5,0);
+            GraphS->DrawMark(x,y,1,CColor[2],Disp->Font->Size*2+5,0);
+            GraphS->DrawText(x,y,s=id,CColor[0],0,0,0);
+        }
+    }
+}
 // draw residuals and snr/elevation plot ------------------------------------
 void __fastcall TPlot::DrawRes(int level)
 {
@@ -1716,7 +1832,7 @@ void __fastcall TPlot::DrawRes(int level)
                 y[2][m]=p->el*R2D;
                 y[3][m]=p->snr*0.25;
                 if      (!(p->flag>>5))  q[m]=0; // invalid
-                else if ((p->flag&7)==1) q[m]=2; // float
+                else if ((p->flag&7)<=1) q[m]=2; // float
                 else if ((p->flag&7)<=3) q[m]=1; // fixed
                 else                     q[m]=6; // ppp
                 s[m++]=(p->flag>>3)&0x3;         // slip
@@ -1813,23 +1929,13 @@ void __fastcall TPlot::DrawPolyS(TGraph *graph, double *x, double *y, int n,
 void __fastcall TPlot::DrawLabel(TGraph *g, TPoint p, AnsiString label, int ha,
     int va)
 {
-    TPoint p1;
-    p1=p; p1.x--; g->DrawText(p1,label,CColor[0],ha,va,0);
-    p1=p; p1.x++; g->DrawText(p1,label,CColor[0],ha,va,0);
-    p1=p; p1.y--; g->DrawText(p1,label,CColor[0],ha,va,0);
-    p1=p; p1.y++; g->DrawText(p1,label,CColor[0],ha,va,0);
-    g->DrawText(p,label,CColor[2],ha,va,0);
+    g->DrawText(p,label,CColor[2],CColor[0],ha,va,0);
 }
 // draw mark with hemming ---------------------------------------------------
 void __fastcall TPlot::DrawMark(TGraph *g, TPoint p, int mark, TColor color,
     int size, int rot)
 {
-    TPoint p1;
-    p1=p; p1.x--; g->DrawMark(p1,mark,CColor[0],size,rot);
-    p1=p; p1.x++; g->DrawMark(p1,mark,CColor[0],size,rot);
-    p1=p; p1.y--; g->DrawMark(p1,mark,CColor[0],size,rot);
-    p1=p; p1.y++; g->DrawMark(p1,mark,CColor[0],size,rot);
-    g->DrawMark(p,mark,color,size,rot);
+    g->DrawMark(p,mark,color,CColor[0],size,rot);
 }
 // refresh google earth view --------------------------------------------------
 void __fastcall TPlot::Refresh_GEView(void)

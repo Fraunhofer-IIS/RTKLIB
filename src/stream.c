@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * stream.c : stream input/output functions
 *
-*          Copyright (C) 2008-2013 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2008-2014 by T.TAKASU, All rights reserved.
 *
 * options : -DWIN32    use WIN32 API
 *           -DSVR_REUSEADDR reuse tcp server address
@@ -38,6 +38,11 @@
 *           2013/03/10 1.10 fix problem with ntrip mountpoint containing "/"
 *           2013/04/15 1.11 fix bug on swapping files if swapmargin=0
 *           2013/05/28 1.12 fix bug on playback of file with 64 bit size_t
+*           2014/05/23 1.13 retry to connect after gethostbyname() error
+*                           fix bug on malloc size in openftp()
+*           2014/06/21 1.14 add general hex message rcv command by !HEX ...
+*           2014/10/16 1.15 support stdin/stdou for input/output from/to file
+*           2014/11/08 1.16 fix getconfig error (87) with bluetooth device
 *-----------------------------------------------------------------------------*/
 #include <ctype.h>
 #include "rtklib.h"
@@ -308,7 +313,7 @@ static serial_t *openserial(const char *path, int mode, char *msg)
         free(serial);
         return NULL;
     }
-    if (!GetDefaultCommConfig(port,&cc,&siz)) {
+    if (!GetCommConfig(serial->dev,&cc,&siz)) {
         sprintf(msg,"getconfig error (%d)",(int)GetLastError());
         tracet(1,"openserial: %s\n",msg);
         CloseHandle(serial->dev);
@@ -446,6 +451,11 @@ static int openfile_(file_t *file, gtime_t time, char *msg)
     file->tick=file->tick_f=tickget();
     file->fpos=0;
     
+    /* use stdin or stdout if file path is null */
+    if (!*file->path) {
+        file->fp=file->mode&STR_MODE_R?stdin:stdout;
+        return 1;
+    }
     /* replace keywords */
     reppath(file->path,file->openpath,time,"","");
     
@@ -614,6 +624,8 @@ static int statefile(file_t *file)
 /* read file -----------------------------------------------------------------*/
 static int readfile(file_t *file, unsigned char *buff, int nmax, char *msg)
 {
+    struct timeval tv={0};
+    fd_set rs;
     unsigned int nr=0,t,tick;
     size_t fpos;
     
@@ -621,6 +633,17 @@ static int readfile(file_t *file, unsigned char *buff, int nmax, char *msg)
     
     if (!file) return 0;
     
+    if (file->fp==stdin) {
+#ifndef WIN32
+        /* input from stdin */
+        FD_ZERO(&rs); FD_SET(0,&rs);
+        if (!select(1,&rs,NULL,NULL,&tv)) return 0;
+        if ((nr=read(0,buff,nmax))<0) return 0;
+        return nr;
+#else
+        return 0;
+#endif
+    }
     if (file->fp_tag) {
         if (file->repmode) { /* slave */
             t=(unsigned int)(tick_master+file->offset);
@@ -909,9 +932,10 @@ static int gentcp(tcp_t *tcp, int type, char *msg)
         if (!(hp=gethostbyname(tcp->saddr))) {
             sprintf(msg,"address error (%s)",tcp->saddr);
             tracet(1,"gentcp: gethostbyname error addr=%s err=%d\n",tcp->saddr,errsock());
-            tcp->state=1;
             closesocket(tcp->sock);
-            tcp->state=-1;
+            tcp->state=0;
+            tcp->tcon=ticonnect;
+            tcp->tdis=tickget();
             return 0;
         }
         memcpy(&tcp->addr.sin_addr,hp->h_addr,hp->h_length);
@@ -1665,7 +1689,7 @@ static ftp_t *openftp(const char *path, int type, char *msg)
     
     msg[0]='\0';
     
-    if (!(ftp=(ftp_t *)malloc(sizeof(ntrip_t)))) return NULL;
+    if (!(ftp=(ftp_t *)malloc(sizeof(ftp_t)))) return NULL;
     
     ftp->state=0;
     ftp->proto=type;
@@ -2142,6 +2166,25 @@ extern void strsendnmea(stream_t *stream, const double *pos)
     n=outnmea_gga(buff,&sol);
     strwrite(stream,buff,n);
 }
+/* generate general hex message ----------------------------------------------*/
+static int gen_hex(const char *msg, unsigned char *buff)
+{
+    unsigned char *q=buff;
+    char mbuff[1024]="",*args[256],*p;
+    unsigned int byte;
+    int i,narg=0;
+    
+    trace(4,"gen_hex: msg=%s\n",msg);
+    
+    strncpy(mbuff,msg,1023);
+    for (p=strtok(mbuff," ");p&&narg<256;p=strtok(NULL," ")) {
+        args[narg++]=p;
+    }
+    for (i=0;i<narg;i++) {
+        if (sscanf(args[i],"%x",&byte)) *q++=(unsigned char)byte;
+    }
+    return (int)(q-buff);
+}
 /* send receiver command -------------------------------------------------------
 * send receiver commands to stream
 * args   : stream_t *stream I   stream
@@ -2180,8 +2223,11 @@ extern void strsendcmd(stream_t *str, const char *cmd)
             else if (!strncmp(msg+1,"NVS",3)) { /* nvs */
                 if ((m=gen_nvs(msg+4,buff))>0) strwrite(str,buff,m);
             }
-            else if (!strncmp(msg+1,"LEXR",3)) { /* lex receiver */
+            else if (!strncmp(msg+1,"LEXR",4)) { /* lex receiver */
                 if ((m=gen_lexr(msg+5,buff))>0) strwrite(str,buff,m);
+            }
+            else if (!strncmp(msg+1,"HEX",3)) { /* general hex message */
+                if ((m=gen_hex(msg+4,buff))>0) strwrite(str,buff,m);
             }
         }
         else {
