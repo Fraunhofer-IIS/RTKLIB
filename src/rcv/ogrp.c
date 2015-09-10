@@ -321,7 +321,7 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
         words[i][15] = ((data[15] << 4) & 0xF0) | ((data[16] >> 4) & 0x0F);
         /* Check the word type */
         if (getbitu(words[i], 0, 6) != (i + 1)) {
-            trace(2,"Galileo word type error: type=%d\n", (i + 1));
+            trace(2,"Galileo word type error or incomplete ephemeris data: type=%d\n", (i + 1));
             return -1;
         }
     }
@@ -391,8 +391,7 @@ static int decode_ogrp_raw_nav_msg_galileo_e1b(raw_t *raw, unsigned char *data, 
         trace(2,"Galileo page error\n");
         return -1;
     }
-    if (word_type == 4) return decode_ephem_galileo(sat_id, raw);
-    return 0;
+    return decode_ephem_galileo(sat_id, raw);
 }
 
 static int decode_ogrp_raw_nav_msg(raw_t *raw, json_object *jobj) {
