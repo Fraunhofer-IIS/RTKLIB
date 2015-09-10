@@ -306,7 +306,7 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
     const unsigned word_len_bytes = 16;
     unsigned char words[nr_ephem_pages_and_tow][word_len_bytes];
     unsigned char *data;
-    double sqrtA, tow, toc;
+    double sqrtA, tow, toc, tt;
 
     sat = satno(SYS_GAL, prn);
 
@@ -357,8 +357,14 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
     tow = time2gpst(raw->time, &week);
     eph.week   = week;
     eph.toe    = gpst2time(eph.week, eph.toes);
-    eph.ttr    = adjweek(eph.toe, tow);
+
+    /* for week-handover problem see novatel.c*/
+    tt = timediff(eph.toe, raw->time);
+    if      (tt < -302400.0) eph.week++;
+    else if (tt >  302400.0) eph.week--;
+    eph.toe = gpst2time(eph.week, eph.toes);
     eph.toc = adjweek(eph.toe, toc);
+    eph.ttr = adjweek(eph.toe, tow);
 
     eph.sat = sat;
     raw->nav.eph[sat - 1] = eph;
