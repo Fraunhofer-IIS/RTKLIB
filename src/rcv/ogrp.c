@@ -3,11 +3,24 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 const static double gpst0[]={1980,1, 6,0,0,0};
 const static unsigned subframe_bytes_without_parity = 30;
 /* Number of bits is 2*(120-6)=228 */
 const static unsigned inav_page_bytes_without_tail = 29;
+
+const static double c_2_pow_m_5  = 0.03125;
+const static double c_2_pow_m_19 = 1.9073486328125e-6;
+const static double c_2_pow_m_29 = 1.86264514923096e-9;
+const static double c_2_pow_m_31 = 4.65661287307739e-10;
+const static double c_2_pow_m_32 = 2.3283064365386962890625e-10;
+const static double c_2_pow_m_33 = 1.16415321826935e-10;
+const static double c_2_pow_m_34 = 5.82076609134674072265625e-11;
+const static double c_2_pow_m_43 = 1.13686837721616e-13;
+const static double c_2_pow_m_46 = 1.4210854715202003717422485351563e-14;
+const static double c_2_pow_m_59 = 1.7347234759768070944119244813919e-18;
+
 
 /* Copy from src/rcv/novatel.c */
 static gtime_t adjweek(gtime_t time, double tow) {
@@ -292,8 +305,8 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
     const unsigned nr_ephem_pages_and_tow = 5;
     const unsigned word_len_bytes = 16;
     unsigned char words[nr_ephem_pages_and_tow][word_len_bytes];
-    double sqrtA, tow;
     unsigned char *data;
+    double sqrtA, tow, toc;
 
     sat = satno(SYS_GAL, prn);
 
@@ -316,35 +329,36 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
     eph.code   = 0; /* INAV=0, FNAV=1 */
     eph.iode   = getbitu(words[1 - 1],   6, 10);
     eph.iodc   = eph.iode;
-    eph.toes   = getbitu(words[1 - 1],  16, 14);
-    sqrtA      = getbitu(words[1 - 1],  94, 32);
+    eph.toes   = getbitu(words[1 - 1],  16, 14) * 60.0;
+    sqrtA      = getbitu(words[1 - 1],  94, 32) * c_2_pow_m_19;
     eph.A      = sqrtA * sqrtA;
-    eph.e      = getbitu(words[1 - 1],  62, 32);
-    eph.i0     = getbitu(words[2 - 1],  48, 32);
-    eph.OMG0   = getbitu(words[2 - 1],  16, 32);
-    eph.omg    = getbitu(words[2 - 1],  80, 32);
-    eph.M0     = getbitu(words[1 - 1],  30, 32);
-    eph.deln   = getbitu(words[3 - 1],  40, 16);
-    eph.OMGd   = getbitu(words[3 - 1],  16, 24);
-    eph.idot   = getbitu(words[2 - 1], 112, 14);
-    eph.crc    = getbitu(words[3 - 1],  88, 16);
-    eph.crs    = getbitu(words[3 - 1], 104, 16);
-    eph.cuc    = getbitu(words[3 - 1],  56, 16);
-    eph.cus    = getbitu(words[3 - 1],  72, 16);
-    eph.cic    = getbitu(words[4 - 1],  22, 16);
-    eph.cis    = getbitu(words[4 - 1],  38, 16);
-    eph.f0     = getbitu(words[4 - 1],  68, 31);
-    eph.f1     = getbitu(words[4 - 1],  99, 21);
-    eph.f2     = getbitu(words[4 - 1], 120,  6);
-    eph.tgd[0] = getbitu(words[5 - 1],  47, 10); /* BGD: E5A-E1 (s) */
-    eph.tgd[1] = getbitu(words[5 - 1],  57, 10); /* BGD: E5B-E1 (s) */
+    eph.e      = getbitu(words[1 - 1],  62, 32) * c_2_pow_m_33;
+    eph.i0     = getbitu(words[2 - 1],  48, 32) * c_2_pow_m_31 * PI;
+    eph.OMG0   = getbitu(words[2 - 1],  16, 32) * c_2_pow_m_31 * PI;
+    eph.omg    = getbitu(words[2 - 1],  80, 32) * c_2_pow_m_31 * PI;
+    eph.M0     = getbitu(words[1 - 1],  30, 32) * c_2_pow_m_31 * PI;
+    eph.deln   = getbitu(words[3 - 1],  40, 16) * c_2_pow_m_43 * PI;
+    eph.OMGd   = getbitu(words[3 - 1],  16, 24) * c_2_pow_m_43 * PI;
+    eph.idot   = getbitu(words[2 - 1], 112, 14) * c_2_pow_m_43 * PI;
+    eph.crc    = getbitu(words[3 - 1],  88, 16) * c_2_pow_m_5;
+    eph.crs    = getbitu(words[3 - 1], 104, 16) * c_2_pow_m_5;
+    eph.cuc    = getbitu(words[3 - 1],  56, 16) * c_2_pow_m_29;
+    eph.cus    = getbitu(words[3 - 1],  72, 16) * c_2_pow_m_29;
+    eph.cic    = getbitu(words[4 - 1],  22, 16) * c_2_pow_m_29;
+    eph.cis    = getbitu(words[4 - 1],  38, 16) * c_2_pow_m_29;
+    eph.f0     = getbitu(words[4 - 1],  68, 31) * c_2_pow_m_34;
+    eph.f1     = getbitu(words[4 - 1],  99, 21) * c_2_pow_m_46;
+    eph.f2     = getbitu(words[4 - 1], 120,  6) * c_2_pow_m_59;
+    eph.tgd[0] = getbitu(words[5 - 1],  47, 10) * c_2_pow_m_32; /* BGD: E5A-E1 (s) */
+    eph.tgd[1] = getbitu(words[5 - 1],  57, 10) * c_2_pow_m_32; /* BGD: E5B-E1 (s) */
+    eph.week   = getbitu(words[5 - 1],  73, 12);
+    toc = getbitu(words[4 - 1],  54, 14) * 60.0;
 
-    /* Compare to decode_galephemerisb in src/rcv/novatel.c */
     tow = time2gpst(raw->time, &week);
     eph.week   = week;
     eph.toe    = gpst2time(eph.week, eph.toes);
     eph.ttr    = adjweek(eph.toe, tow);
-    eph.toc    = adjweek(eph.toe, getbitu(words[4 - 1],  54, 14));
+    eph.toc = adjweek(eph.toe, toc);
 
     eph.sat = sat;
     raw->nav.eph[sat - 1] = eph;
