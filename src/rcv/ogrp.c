@@ -292,18 +292,18 @@ static int decode_ephem_galileo(int prn, raw_t *raw) {
     const unsigned nr_ephem_pages_and_tow = 5;
     const unsigned word_len_bytes = 16;
     unsigned char words[nr_ephem_pages_and_tow][word_len_bytes];
-    unsigned *data;
     double sqrtA, tow;
+    unsigned char *data;
 
     sat = satno(SYS_GAL, prn);
 
     trace(4,"decode_ephem_galileo: sat=%2d\n", sat);
 
     for (i = 0; i < nr_ephem_pages_and_tow; i++) {
-        data = raw->subfrm[sat - 1] + inav_page_bytes_without_tail * i;
-        /* Extract word bytes from even page part */
+        data = (unsigned char *) (raw->subfrm[sat - 1] + inav_page_bytes_without_tail * i);
+        /* Extract data bytes from even page part */
         for (j = 0; j < word_len_bytes - 2; j++) words[i][j] = ((data[j] << 2) & 0xFC) | ((data[j + 1] >> 6) & 0x03);
-        /* Extract word bytes from odd page part */
+        /* Extract data bytes from odd page part */
         words[i][14] = ((data[14] << 4) & 0xF0) | ((data[15] >> 4) & 0x0F);
         words[i][15] = ((data[15] << 4) & 0xF0) | ((data[16] >> 4) & 0x0F);
         /* Check the word type */
