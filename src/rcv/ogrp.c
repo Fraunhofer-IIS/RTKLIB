@@ -139,17 +139,33 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
         trace(2, "Discard channel measurement. Signal priority is too low for %s %s\n", gnss, signal_type);
     }
 
-    if (get_value_check_type(jobj, "pseudo_range", &jpseudorange, json_type_double) < 0) return -1;
-    pseudorange = json_object_get_double(jpseudorange);
+    if (get_value_check_type(jobj, "pseudo_range", &jpseudorange, json_type_double) < 0) {
+        if (get_value_check_type(jobj, "pseudo_range", &jpseudorange, json_type_int) < 0) return -1;
+        pseudorange = (double)json_object_get_int(jpseudorange);
+    } else {
+        pseudorange = json_object_get_double(jpseudorange);
+    }
 
-    if (get_value_check_type(jobj, "doppler", &jdoppler, json_type_double) < 0) return -1;
-    doppler = json_object_get_double(jdoppler);
+    if (get_value_check_type(jobj, "doppler", &jdoppler, json_type_double) < 0) {
+        if (get_value_check_type(jobj, "doppler", &jdoppler, json_type_int) < 0) return -1;
+        doppler = (double)json_object_get_int(jdoppler);
+    } else {
+        doppler = json_object_get_double(jdoppler);
+    }
 
-    if (get_value_check_type(jobj, "carrier_phase", &jcarrier_phase, json_type_double) < 0) return -1;
-    carrier_phase = json_object_get_double(jcarrier_phase);
+    if (get_value_check_type(jobj, "carrier_phase", &jcarrier_phase, json_type_double) < 0) {
+        if (get_value_check_type(jobj, "carrier_phase", &jcarrier_phase, json_type_int) < 0) return -1;
+        carrier_phase = (double)json_object_get_int(jcarrier_phase);
+    } else {
+        carrier_phase = json_object_get_double(jcarrier_phase);
+    }
 
-    if (get_value_check_type(jobj, "snr", &jsnr, json_type_double) < 0) return -1;
-    snr = json_object_get_double(jsnr);
+    if (get_value_check_type(jobj, "snr", &jsnr, json_type_double) < 0) {
+        if (get_value_check_type(jobj, "snr", &jsnr, json_type_int) < 0) return -1;
+        snr = (double)json_object_get_int(jsnr);
+    } else {
+        snr = json_object_get_double(jsnr);
+    }
 
     if (get_value_check_type(jobj, "satellite_id", &jsat_id, json_type_int) < 0) return -1;
     sat_id = json_object_get_int(jsat_id);
@@ -158,8 +174,12 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
         return -1;
     }
 
-    if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_double) < 0) return -1;
-    locktime = json_object_get_double(jlocktime);
+    if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_double) < 0) {
+        if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_int) < 0) return -1;
+        locktime = (double)json_object_get_int(jlocktime);
+    } else {
+        locktime = json_object_get_double(jlocktime);
+    }
 
     if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat - 1][freq_nr] + 0.05 <= tt;
     else lli = 0;
