@@ -1,3 +1,6 @@
+Hallo
+{"Description":"RTK_OUTPUT"}
+{"pvtOutput":518430}
 {"Description":"RTK_OUTPUT","Header":{"protocol":"OGRP","refPos":{"coord":"ECEF","pos":{"x":4075578.3999999999,"y":931852.75,"z":4801569.9800000004}},"startOpt":518400},"pvtOutput":{"Interval":518400,"ambmode":"Fixed","nSats":7,"navmode":"3D","rovPos":{"coord":"ECEF","pos":{"x":4075533.0230999999,"y":931821.27850000001,"z":4801610.8454}},"time":518400}}
 {"pvtOutput":{"Interval":30,"ambmode":"Fixed","nSats":7,"navmode":"3D","rovPos":{"coord":"ECEF","pos":{"x":4075533.0207000002,"y":931821.27879999997,"z":4801610.8373999996}},"time":518430}}
 {"pvtOutput":{"Interval":30,"ambmode":"Fixed","nSats":7,"navmode":"3D","rovPos":{"coord":"ECEF","pos":{"x":4075533.0260999999,"y":931821.27870000002,"z":4801610.8446000004}},"time":518460}}
