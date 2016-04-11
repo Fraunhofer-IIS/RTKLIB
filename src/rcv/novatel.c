@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * notvatel.c : NovAtel OEM6/OEM5/OEM4/OEM3 receiver functions
 *
-*          Copyright (C) 2007-2013 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2007-2014 by T.TAKASU, All rights reserved.
 *
 * reference :
 *     [1] NovAtel, OM-20000094 Rev6 OEMV Family Firmware Reference Manual, 2008
@@ -9,6 +9,7 @@
 *         and 4.52 Command Descriptions Manual, 2001
 *     [3] NovAtel, OM-20000129 Rev2 OEM6 Family Firmware Reference Manual, 2011
 *     [4] NovAtel, OM-20000127 Rev1 OEMStar Firmware Reference Manual, 2009
+*     [5] NovAtel, OM-20000129 Rev6 OEM6 Family Firmware Reference Manual, 2014
 *
 * version : $Revision: 1.2 $ $Date: 2008/07/14 00:05:05 $
 * history : 2007/10/08 1.0 new
@@ -39,6 +40,10 @@
 *           2013/06/02 1.15 fix bug on reading galephemrisb,galalmanacb,
 *                           galclockb,galionob
 *                           fix bug on decoding rawwaasframeb for qzss-saif
+*           2014/05/24 1.16 support beidou
+*           2014/07/01 1.17 fix problem on decoding of bdsephemerisb
+*                           fix bug on beidou tracking codes
+*           2014/10/20 1.11 fix bug on receiver option -GL*,-RL*,-EL*
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -74,6 +79,8 @@ static const char rcsid[]="$Id: novatel.c,v 1.2 2008/07/14 00:05:05 TTAKA Exp $"
 #define ID_GALIONO  1127        /* message id: oem6 decoded galileo iono corrections */
 #define ID_GALFNAVRAWPAGE 1413  /* message id: oem6 raw galileo f/nav paga data */
 #define ID_GALINAVRAWWORD 1414  /* message id: oem6 raw galileo i/nav word data */
+#define ID_RAWCNAVFRAME 1066    /* message id: oem6 raw cnav frame data */
+#define ID_BDSEPHEMERIS 1696    /* message id: oem6 decoded bds ephemeris */
 
 #define ID_ALMB     18          /* message id: oem3 decoded almanac */
 #define ID_IONB     16          /* message id: oem3 iono parameters */
@@ -143,6 +150,17 @@ static int obsindex(obs_t *obs, gtime_t time, int sat)
     obs->n++;
     return i;
 }
+/* ura value (m) to ura index ------------------------------------------------*/
+static int uraindex(double value)
+{
+    static const double ura_eph[]={
+        2.4,3.4,4.85,6.85,9.65,13.65,24.0,48.0,96.0,192.0,384.0,768.0,1536.0,
+        3072.0,6144.0,0.0
+    };
+    int i;
+    for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
+    return i;
+}
 /* decode oem4 tracking status -------------------------------------------------
 * deocode oem4 tracking status
 * args   : unsigned int stat I  tracking status field
@@ -189,6 +207,7 @@ static int decode_trackstat(unsigned int stat, int *sys, int *code, int *track,
         case 1: *sys=SYS_GLO; break;
         case 2: *sys=SYS_SBS; break;
         case 3: *sys=SYS_GAL; break; /* OEM6 */
+        case 4: *sys=SYS_CMP; break; /* OEM6 F/W 6.400 */
         case 5: *sys=SYS_QZS; break; /* OEM6 */
         default:
             trace(2,"oem4 unknown system: sys=%d\n",satsys);
@@ -222,6 +241,15 @@ static int decode_trackstat(unsigned int stat, int *sys, int *code, int *track,
             default: freq=-1; break;
         }
     }
+    else if (*sys==SYS_CMP) {
+        switch (sigtype) {
+            case  0: freq=0; *code=CODE_L1I; break; /* B1 with D1 (OEM6) */
+            case  1: freq=1; *code=CODE_L7I; break; /* B2 with D1 (OEM6) */
+            case  4: freq=0; *code=CODE_L1I; break; /* B1 with D2 (OEM6) */
+            case  5: freq=1; *code=CODE_L7I; break; /* B2 with D2 (OEM6) */
+            default: freq=-1; break;
+        }
+    }
     else if (*sys==SYS_SBS) {
         switch (sigtype) {
             case  0: freq=0; *code=CODE_L1C; break; /* L1C/A */
@@ -241,17 +269,17 @@ static int checkpri(const char *opt, int sys, int code, int freq)
     int nex=NEXOBS; /* number of extended obs data */
     
     if (sys==SYS_GPS) {
-        if (strstr(opt,"-GL1P")) return code==CODE_L1P?0:-1;
-        if (strstr(opt,"-GL2X")) return code==CODE_L2X?1:-1;
+        if (strstr(opt,"-GL1P")&&freq==0) return code==CODE_L1P?0:-1;
+        if (strstr(opt,"-GL2X")&&freq==1) return code==CODE_L2X?1:-1;
         if (code==CODE_L1P) return nex<1?-1:NFREQ;
         if (code==CODE_L2X) return nex<2?-1:NFREQ+1;
     }
     else if (sys==SYS_GLO) {
-        if (strstr(opt,"-RL2C")) return code==CODE_L2C?1:-1;
+        if (strstr(opt,"-RL2C")&&freq==1) return code==CODE_L2C?1:-1;
         if (code==CODE_L2C) return nex<1?-1:NFREQ;
     }
     else if (sys==SYS_GAL) {
-        if (strstr(opt,"-EL1B")) return code==CODE_L1B?0:-1;
+        if (strstr(opt,"-EL1B")&&freq==0) return code==CODE_L1B?0:-1;
         if (code==CODE_L1B) return nex<1?-1:NFREQ;
         if (code==CODE_L7Q) return nex<2?-1:NFREQ+1;
         if (code==CODE_L8Q) return nex<3?-1:NFREQ+2;
@@ -710,8 +738,8 @@ static int decode_galephemerisb(raw_t *raw)
     dvs_e1b   =U1(p)&1; p+=1;
     dvs_e5a   =U1(p)&1; p+=1;
     dvs_e5b   =U1(p)&1; p+=1;
-    eph.sva   =U1(p);   p+=1+1;
-    eph.iode  =U4(p);   p+=4;
+    eph.sva   =U1(p);   p+=1+1; /* SISA */
+    eph.iode  =U4(p);   p+=4;   /* IODNav */
     eph.toes  =U4(p);   p+=4;
     sqrtA     =R8(p);   p+=8;
     eph.deln  =R8(p);   p+=8;
@@ -898,7 +926,7 @@ static int decode_galfnavrawpageb(raw_t *raw)
     trace(3,"%s E%2d FNAV     (%2d) ",time_str(raw->time,0),satid,page);
     traceb(3,buff,27);
     
-    return 9;
+    return 0;
 }
 /* decode galinavrawwordb ----------------------------------------------------*/
 static int decode_galinavrawwordb(raw_t *raw)
@@ -937,7 +965,97 @@ static int decode_galinavrawwordb(raw_t *raw)
     trace(3,"%s E%2d INAV-%s (%2d) ",time_str(time,0),satid,sig,type);
     traceb(3,buff,16);
     
-    return 9;
+    return 0;
+}
+/* decode rawcnavframeb ------------------------------------------------------*/
+static int decode_rawcnavframeb(raw_t *raw)
+{
+    unsigned char *p=raw->buff+OEM4HLEN;
+    unsigned char buff[38];
+    int i,sigch,prn,frmid;
+    
+    trace(3,"decode_rawcnavframeb: len=%d\n",raw->len);
+    
+    if (raw->len<OEM4HLEN+50) {
+        trace(2,"oem4 rawcnavframeb length error: len=%d\n",raw->len);
+        return -1;
+    }
+    sigch=U4(p); p+=4;
+    prn  =U4(p); p+=4;
+    frmid=U4(p); p+=4;
+    
+    for (i=0;i<38;i++) {
+        buff[i]=U1(p); p+=1;
+    }
+    trace(3,"%s PRN=%3d FRMID=%2d ",time_str(raw->time,0),prn,frmid);
+    traceb(3,buff,38);
+    
+    return 0;
+}
+/* decode bdsephemerisb ------------------------------------------------------*/
+static int decode_bdsephemerisb(raw_t *raw)
+{
+    eph_t eph={0};
+    unsigned char *p=raw->buff+OEM4HLEN;
+    double ura,sqrtA;
+    char *msg;
+    int prn,toc;
+    
+    trace(3,"decode_bdsephemerisb: len=%d\n",raw->len);
+    
+    if (raw->len<OEM4HLEN+196) {
+        trace(2,"oem4 bdsephemrisb length error: len=%d\n",raw->len);
+        return -1;
+    }
+    prn       =U4(p);   p+=4;
+    eph.week  =U4(p);   p+=4;
+    ura       =R8(p);   p+=8;
+    eph.svh   =U4(p)&1; p+=4;
+    eph.tgd[0]=R8(p);   p+=8; /* TGD1 for B1 (s) */
+    eph.tgd[1]=R8(p);   p+=8; /* TGD2 for B2 (s) */
+    eph.iodc  =U4(p);   p+=4; /* AODC */
+    toc       =U4(p);   p+=4;
+    eph.f0    =R8(p);   p+=8;
+    eph.f1    =R8(p);   p+=8;
+    eph.f2    =R8(p);   p+=8;
+    eph.iode  =U4(p);   p+=4; /* AODE */
+    eph.toes  =U4(p);   p+=4;
+    sqrtA     =R8(p);   p+=8;
+    eph.e     =R8(p);   p+=8;
+    eph.omg   =R8(p);   p+=8;
+    eph.deln  =R8(p);   p+=8;
+    eph.M0    =R8(p);   p+=8;
+    eph.OMG0  =R8(p);   p+=8;
+    eph.OMGd  =R8(p);   p+=8;
+    eph.i0    =R8(p);   p+=8;
+    eph.idot  =R8(p);   p+=8;
+    eph.cuc   =R8(p);   p+=8;
+    eph.cus   =R8(p);   p+=8;
+    eph.crc   =R8(p);   p+=8;
+    eph.crs   =R8(p);   p+=8;
+    eph.cic   =R8(p);   p+=8;
+    eph.cis   =R8(p);
+    eph.A     =sqrtA*sqrtA;
+    eph.sva   =uraindex(ura);
+    
+    if (raw->outtype) {
+        msg=raw->msgtype+strlen(raw->msgtype);
+        sprintf(msg," prn=%3d iod=%3d toes=%6.0f",prn,eph.iode,eph.toes);
+    }
+    if (!(eph.sat=satno(SYS_CMP,prn))) {
+        trace(2,"oemv bdsephemeris satellite error: prn=%d\n",prn);
+        return -1;
+    }
+    eph.toe=bdt2gpst(bdt2time(eph.week,eph.toes)); /* bdt -> gpst */
+    eph.toc=bdt2gpst(bdt2time(eph.week,toc));      /* bdt -> gpst */
+    eph.ttr=raw->time;
+    
+    if (!strstr(raw->opt,"-EPHALL")) {
+        if (timediff(raw->nav.eph[eph.sat-1].toe,eph.toe)==0.0) return 0; /* unchanged */
+    }
+    raw->nav.eph[eph.sat-1]=eph;
+    raw->ephsat=eph.sat;
+    return 2;
 }
 /* decode rgeb ---------------------------------------------------------------*/
 static int decode_rgeb(raw_t *raw)
@@ -1196,6 +1314,8 @@ static int decode_oem4(raw_t *raw)
         case ID_GALIONO       : return decode_galionob       (raw);
         case ID_GALFNAVRAWPAGE: return decode_galfnavrawpageb(raw);
         case ID_GALINAVRAWWORD: return decode_galinavrawwordb(raw);
+        case ID_RAWCNAVFRAME  : return decode_rawcnavframeb  (raw);
+        case ID_BDSEPHEMERIS  : return decode_bdsephemerisb  (raw);
     }
     return 0;
 }

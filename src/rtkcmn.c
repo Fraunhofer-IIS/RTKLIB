@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * rtkcmn.c : rtklib common functions
 *
-*          Copyright (C) 2007-2013 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2007-2015 by T.TAKASU, All rights reserved.
 *
 * options : -DLAPACK   use LAPACK/BLAS
 *           -DMKL      use Intel MKL
@@ -93,6 +93,18 @@
 *           2013/05/08 1.22 fix bug on nutation coefficients for ast_args()
 *           2013/06/02 1.23 add #ifdef for undefined CLOCK_MONOTONIC_RAW
 *           2013/09/01 1.24 fix bug on interpolation of satellite antenna pcv
+*           2013/09/06 1.25 fix bug on extrapolation of erp
+*           2014/04/27 1.26 add SYS_LEO for satellite system
+*                           add BDS L1 code for RINEX 3.02 and RTCM 3.2
+*                           support BDS L1 in satwavelen()
+*           2014/05/29 1.27 fix bug on obs2code() to search obs code table
+*           2014/08/26 1.28 fix problem on output of uncompress() for tar file
+*                           add function to swap trace file with keywords
+*           2014/10/21 1.29 strtok() -> strtok_r() in expath() for thread-safe
+*                           add bdsmodear in procopt_default
+*           2015/03/19 1.30 fix bug on interpolation of erp values in geterp()
+*                           add leap second insertion before 2015/07/01 00:00
+*                           add api read_leaps()
 *-----------------------------------------------------------------------------*/
 #define _POSIX_C_SOURCE 199309
 #include <stdarg.h>
@@ -117,7 +129,8 @@ const static double gpst0[]={1980,1, 6,0,0,0}; /* gps time reference */
 const static double gst0 []={1999,8,22,0,0,0}; /* galileo system time reference */
 const static double bdt0 []={2006,1, 1,0,0,0}; /* beidou time reference */
 
-const static double leaps[][7]={ /* leap seconds {y,m,d,h,m,s,utc-gpst,...} */
+static double leaps[MAXLEAPS+1][7]={ /* leap seconds (y,m,d,h,m,s,utc-gpst) */
+    {2015,7,1,0,0,0,-17},
     {2012,7,1,0,0,0,-16},
     {2009,1,1,0,0,0,-15},
     {2006,1,1,0,0,0,-14},
@@ -133,7 +146,8 @@ const static double leaps[][7]={ /* leap seconds {y,m,d,h,m,s,utc-gpst,...} */
     {1985,7,1,0,0,0, -4},
     {1983,7,1,0,0,0, -3},
     {1982,7,1,0,0,0, -2},
-    {1981,7,1,0,0,0, -1}
+    {1981,7,1,0,0,0, -1},
+    {0}
 };
 const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
     10.8,13.8,16.3,18.5,20.5,22.5,24.3,26.1,27.9,29.6,
@@ -153,7 +167,8 @@ const double lam_carr[]={       /* carrier wave length (m) */
 const prcopt_t prcopt_default={ /* defaults processing options */
     PMODE_SINGLE,0,2,SYS_GPS,   /* mode,soltype,nf,navsys */
     15.0*D2R,{{0,0}},           /* elmin,snrmask */
-    0,1,1,5,0,10,               /* sateph,modear,glomodear,maxout,minlock,minfix */
+    0,1,1,1,                    /* sateph,modear,glomodear,bdsmodear */
+    5,0,10,                     /* glomodear,maxout,minlock,minfix */
     0,0,0,0,                    /* estion,esttrop,dynamics,tidecorr */
     1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
     0,0,                        /* rovpos,refpos */
@@ -190,13 +205,14 @@ const char *formatstrs[]={      /* stream format strings */
     "NVS BINR",                 /* 10 */
     "BINEX",                    /* 11 */
     "OGRP",                     /* 12 */
-    "LEX Receiver",             /* 13 */
-    "SiRF",                     /* 14 */
-    "RINEX",                    /* 15 */
-    "SP3",                      /* 16 */
-    "RINEX CLK",                /* 17 */
-    "SBAS",                     /* 18 */
-    "NMEA 0183",                /* 19 */
+    "Trimble RT17",             /* 13 */
+    "LEX Receiver",             /* 14 */
+    "Septentrio",               /* 15 */
+    "RINEX",                    /* 16 */
+    "SP3",                      /* 17 */
+    "RINEX CLK",                /* 18 */
+    "SBAS",                     /* 19 */
+    "NMEA 0183",                /* 20 */
     NULL
 };
 static char *obscodes[]={       /* observation code strings */
@@ -205,7 +221,7 @@ static char *obscodes[]={       /* observation code strings */
     "1A","1B","1X","1Z","2C", "2D","2S","2L","2X","2P", /* 10-19 */
     "2W","2Y","2M","2N","5I", "5Q","5X","7I","7Q","7X", /* 20-29 */
     "6A","6B","6C","6X","6Z", "6S","6L","8L","8Q","8X", /* 30-39 */
-    "2I","2Q","6I","6Q","3I", "3Q","3X",""              /* 40-49 */
+    "2I","2Q","6I","6Q","3I", "3Q","3X","1I","1Q",""    /* 40-49 */
 };
 static unsigned char obsfreqs[]={ /* 1:L1,2:L2,3:L5,4:L6,5:L7,6:L8,7:L3 */
     
@@ -213,7 +229,7 @@ static unsigned char obsfreqs[]={ /* 1:L1,2:L2,3:L5,4:L6,5:L7,6:L8,7:L3 */
     1, 1, 1, 1, 2,  2, 2, 2, 2, 2, /* 10-19 */
     2, 2, 2, 2, 3,  3, 3, 5, 5, 5, /* 20-29 */
     4, 4, 4, 4, 4,  4, 4, 6, 6, 6, /* 30-39 */
-    2, 2, 4, 4, 3,  3, 3, 0        /* 40-49 */
+    2, 2, 4, 4, 3,  3, 3, 1, 1, 0  /* 40-49 */
 };
 static char codepris[6][MAXFREQ][16]={  /* code priority table */
    
@@ -223,7 +239,7 @@ static char codepris[6][MAXFREQ][16]={  /* code priority table */
     {"CABXZ"   ,""          ,"IQX"     ,"ABCXZ"  ,"IQX"    ,"IQX"}, /* GAL */
     {"CSLXZ"   ,"SLX"       ,"IQX"     ,"SLX"    ,""       ,""   }, /* QZS */
     {"C"       ,""          ,"IQX"     ,""       ,""       ,""   }, /* SBS */
-    {""        ,"IQX"       ,""        ,"IQX"    ,"IQX"    ,""   }  /* BDS */
+    {"IQX"     ,"IQX"       ,"IQX"     ,"IQX"    ,"IQX"    ,""   }  /* BDS */
 };
 /* crc tables generated by util/gencrc ---------------------------------------*/
 static const unsigned short tbl_CRC16[]={
@@ -348,9 +364,12 @@ extern int satno(int sys, int prn)
         case SYS_CMP:
             if (prn<MINPRNCMP||MAXPRNCMP<prn) return 0;
             return NSATGPS+NSATGLO+NSATGAL+NSATQZS+prn-MINPRNCMP+1;
+        case SYS_LEO:
+            if (prn<MINPRNLEO||MAXPRNLEO<prn) return 0;
+            return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+prn-MINPRNLEO+1;
         case SYS_SBS:
             if (prn<MINPRNSBS||MAXPRNSBS<prn) return 0;
-            return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+prn-MINPRNSBS+1;
+            return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+NSATLEO+prn-MINPRNSBS+1;
     }
     return 0;
 }
@@ -379,7 +398,10 @@ extern int satsys(int sat, int *prn)
     else if ((sat-=NSATQZS)<=NSATCMP) {
         sys=SYS_CMP; sat+=MINPRNCMP-1; 
     }
-    else if ((sat-=NSATCMP)<=NSATSBS) {
+    else if ((sat-=NSATCMP)<=NSATLEO) {
+        sys=SYS_LEO; sat+=MINPRNLEO-1; 
+    }
+    else if ((sat-=NSATLEO)<=NSATSBS) {
         sys=SYS_SBS; sat+=MINPRNSBS-1; 
     }
     else sat=0;
@@ -412,6 +434,7 @@ extern int satid2no(const char *id)
         case 'E': sys=SYS_GAL; prn+=MINPRNGAL-1; break;
         case 'J': sys=SYS_QZS; prn+=MINPRNQZS-1; break;
         case 'C': sys=SYS_CMP; prn+=MINPRNCMP-1; break;
+        case 'L': sys=SYS_LEO; prn+=MINPRNLEO-1; break;
         case 'S': sys=SYS_SBS; prn+=100; break;
         default: return 0;
     }
@@ -432,6 +455,7 @@ extern void satno2id(int sat, char *id)
         case SYS_GAL: sprintf(id,"E%02d",prn-MINPRNGAL+1); return;
         case SYS_QZS: sprintf(id,"J%02d",prn-MINPRNQZS+1); return;
         case SYS_CMP: sprintf(id,"C%02d",prn-MINPRNCMP+1); return;
+        case SYS_LEO: sprintf(id,"L%02d",prn-MINPRNLEO+1); return;
         case SYS_SBS: sprintf(id,"%03d" ,prn); return;
     }
     strcpy(id,"");
@@ -1360,6 +1384,34 @@ extern void timeset(gtime_t t)
 {
     timeoffset_+=timediff(t,timeget());
 }
+/* read leap seconds table -----------------------------------------------------
+* read leap seconds table
+* args   : char    *file    I   leap seconds table file
+* return : status (1:ok,0:error)
+* notes  : (1) The records in the table file cosist of the following fields:
+*              year month day hour min sec UTC-GPST(s)
+*          (2) The date and time indicate the start UTC time for the UTC-GPST
+*          (3) The date and time should be descending order.
+*-----------------------------------------------------------------------------*/
+extern int read_leaps(const char *file)
+{
+    FILE *fp;
+    char buff[256],*p;
+    int i,n=0,ep[6],ls;
+    
+    if (!(fp=fopen(file,"r"))) return 0;
+    
+    while (fgets(buff,sizeof(buff),fp)&&n<MAXLEAPS) {
+        if ((p=strchr(buff,'#'))) *p='\0';
+        if (sscanf(buff,"%d %d %d %d %d %d %d",ep,ep+1,ep+2,ep+3,ep+4,ep+5,
+                   &ls)<7) continue;
+        for (i=0;i<6;i++) leaps[n][i]=ep[i];
+        leaps[n++][6]=ls;
+    }
+    for (i=0;i<7;i++) leaps[n][i]=0.0;
+    fclose(fp);
+    return 1;
+}
 /* gpstime to utc --------------------------------------------------------------
 * convert gpstime to utc considering leap seconds
 * args   : gtime_t t        I   time expressed in gpstime
@@ -1371,7 +1423,7 @@ extern gtime_t gpst2utc(gtime_t t)
     gtime_t tu;
     int i;
     
-    for (i=0;i<(int)sizeof(leaps)/(int)sizeof(*leaps);i++) {
+    for (i=0;leaps[i][0]>0;i++) {
         tu=timeadd(t,leaps[i][6]);
         if (timediff(tu,epoch2time(leaps[i]))>=0.0) return tu;
     }
@@ -1387,7 +1439,7 @@ extern gtime_t utc2gpst(gtime_t t)
 {
     int i;
     
-    for (i=0;i<(int)sizeof(leaps)/(int)sizeof(*leaps);i++) {
+    for (i=0;leaps[i][0]>0;i++) {
         if (timediff(t,epoch2time(leaps[i]))>=0.0) return timeadd(t,-leaps[i][6]);
     }
     return t;
@@ -2296,7 +2348,7 @@ extern int geterp(const erp_t *erp, gtime_t time, double *erpv)
     if (mjd<=erp->data[0].mjd) {
         day=mjd-erp->data[0].mjd;
         erpv[0]=erp->data[0].xp     +erp->data[0].xpr*day;
-        erpv[1]=erp->data[0].yp     +erp->data[0].xpr*day;
+        erpv[1]=erp->data[0].yp     +erp->data[0].ypr*day;
         erpv[2]=erp->data[0].ut1_utc-erp->data[0].lod*day;
         erpv[3]=erp->data[0].lod;
         return 1;
@@ -2309,20 +2361,20 @@ extern int geterp(const erp_t *erp, gtime_t time, double *erpv)
         erpv[3]=erp->data[erp->n-1].lod;
         return 1;
     }
-    for (j=0,k=erp->n-1;j<=k;) {
+    for (j=0,k=erp->n-1;j<k-1;) {
         i=(j+k)/2;
-        if (mjd<erp->data[i].mjd) k=i-1; else j=i+1;
+        if (mjd<erp->data[i].mjd) k=i; else j=i;
     }
-    if (erp->data[i].mjd==mjd-erp->data[i+1].mjd) {
+    if (erp->data[j].mjd==erp->data[j+1].mjd) {
         a=0.5;
     }
     else {
-        a=(mjd-erp->data[i+1].mjd)/(erp->data[i].mjd-mjd-erp->data[i+1].mjd);
+        a=(mjd-erp->data[j].mjd)/(erp->data[j+1].mjd-erp->data[j].mjd);
     }
-    erpv[0]=(1.0-a)*erp->data[i].xp     +a*erp->data[i+1].xp;
-    erpv[1]=(1.0-a)*erp->data[i].yp     +a*erp->data[i+1].yp;
-    erpv[2]=(1.0-a)*erp->data[i].ut1_utc+a*erp->data[i+1].ut1_utc;
-    erpv[3]=(1.0-a)*erp->data[i].lod    +a*erp->data[i+1].lod;
+    erpv[0]=(1.0-a)*erp->data[j].xp     +a*erp->data[j+1].xp;
+    erpv[1]=(1.0-a)*erp->data[j].yp     +a*erp->data[j+1].yp;
+    erpv[2]=(1.0-a)*erp->data[j].ut1_utc+a*erp->data[j+1].ut1_utc;
+    erpv[3]=(1.0-a)*erp->data[j].lod    +a*erp->data[j+1].lod;
     return 1;
 }
 /* compare ephemeris ---------------------------------------------------------*/
@@ -2345,7 +2397,7 @@ static void uniqeph(nav_t *nav)
     
     qsort(nav->eph,nav->n,sizeof(eph_t),cmpeph);
     
-    for (i=j=0;i<nav->n;i++) {
+    for (i=1,j=0;i<nav->n;i++) {
         if (nav->eph[i].sat!=nav->eph[j].sat||
             nav->eph[i].iode!=nav->eph[j].iode) {
             nav->eph[++j]=nav->eph[i];
@@ -2635,18 +2687,54 @@ extern void freenav(nav_t *nav, int opt)
 #ifdef TRACE
 
 static FILE *fp_trace=NULL;     /* file pointer of trace */
+static char file_trace[1024];   /* trace file */
 static int level_trace=0;       /* level of trace */
 static unsigned int tick_trace=0; /* tick time at traceopen (ms) */
+static gtime_t time_trace={0};  /* time at traceopen */
+static lock_t lock_trace;       /* lock for trace */
 
+static void traceswap(void)
+{
+    gtime_t time=utc2gpst(timeget());
+    char path[1024];
+    
+    lock(&lock_trace);
+    
+    if ((int)(time2gpst(time      ,NULL)/INT_SWAP_TRAC)==
+        (int)(time2gpst(time_trace,NULL)/INT_SWAP_TRAC)) {
+        unlock(&lock_trace);
+        return;
+    }
+    time_trace=time;
+    
+    if (!reppath(file_trace,path,time,"","")) {
+        unlock(&lock_trace);
+        return;
+    }
+    if (fp_trace) fclose(fp_trace);
+    
+    if (!(fp_trace=fopen(path,"w"))) {
+        fp_trace=stderr;
+    }
+    unlock(&lock_trace);
+}
 extern void traceopen(const char *file)
 {
-    if (!*file||!(fp_trace=fopen(file,"w"))) fp_trace=stderr;
+    gtime_t time=utc2gpst(timeget());
+    char path[1024];
+    
+    reppath(file,path,time,"","");
+    if (!*path||!(fp_trace=fopen(path,"w"))) fp_trace=stderr;
+    strcpy(file_trace,file);
     tick_trace=tickget();
+    time_trace=time;
+    initlock(&lock_trace);
 }
 extern void traceclose(void)
 {
     if (fp_trace&&fp_trace!=stderr) fclose(fp_trace);
     fp_trace=NULL;
+    file_trace[0]='\0';
 }
 extern void tracelevel(int level)
 {
@@ -2661,6 +2749,7 @@ extern void trace(int level, const char *format, ...)
         va_start(ap,format); vfprintf(stderr,format,ap); va_end(ap);
     }
     if (!fp_trace||level>level_trace) return;
+    traceswap();
     fprintf(fp_trace,"%d ",level);
     va_start(ap,format); vfprintf(fp_trace,format,ap); va_end(ap);
     fflush(fp_trace);
@@ -2670,6 +2759,7 @@ extern void tracet(int level, const char *format, ...)
     va_list ap;
     
     if (!fp_trace||level>level_trace) return;
+    traceswap();
     fprintf(fp_trace,"%d %9.3f: ",level,(tickget()-tick_trace)/1000.0);
     va_start(ap,format); vfprintf(fp_trace,format,ap); va_end(ap);
     fflush(fp_trace);
@@ -2870,7 +2960,7 @@ extern int expath(const char *path, char *paths[], int nmax)
     struct dirent *d;
     DIR *dp;
     const char *file=path;
-    char dir[1024]="",s1[1024],s2[1024],*p,*q;
+    char dir[1024]="",s1[1024],s2[1024],*p,*q,*r;
     
     trace(3,"expath  : path=%s nmax=%d\n",path,nmax);
     
@@ -2884,7 +2974,8 @@ extern int expath(const char *path, char *paths[], int nmax)
         sprintf(s2,"^%s$",file);
         for (p=s1;*p;p++) *p=(char)tolower((int)*p);
         for (p=s2;*p;p++) *p=(char)tolower((int)*p);
-        for (p=s1,q=strtok(s2,"*");q;q=strtok(NULL,"*")) {
+        
+        for (p=s1,q=strtok_r(s2,"*",&r);q;q=strtok_r(NULL,"*",&r)) {
             if ((p=strstr(p,q))) p+=strlen(q); else break;
         }
         if (p&&n<nmax) sprintf(paths[n++],"%s%s",dir,d->d_name);
@@ -3079,9 +3170,9 @@ extern double satwavelen(int sat, int frq, const nav_t *nav)
         }
     }
     else if (sys==SYS_CMP) {
-        if      (frq==1) return CLIGHT/FREQ2_CMP; /* B1 */
-        else if (frq==3) return CLIGHT/FREQ6_CMP; /* B3 */
-        else if (frq==4) return CLIGHT/FREQ7_CMP; /* B2 */
+        if      (frq==0) return CLIGHT/FREQ1_CMP; /* B1 */
+        else if (frq==1) return CLIGHT/FREQ2_CMP; /* B3 */
+        else if (frq==2) return CLIGHT/FREQ3_CMP; /* B2 */
     }
     else {
         if      (frq==0) return CLIGHT/FREQ1; /* L1/E1 */
@@ -3617,10 +3708,7 @@ extern void csmooth(obs_t *obs, int ns)
 extern int uncompress(const char *file, char *uncfile)
 {
     int stat=0;
-    char *p,cmd[2048]="",tmpfile[1024]="";
-#ifdef WIN32
-    char buff[1024],*fname,*dir="";
-#endif
+    char *p,cmd[2048]="",tmpfile[1024]="",buff[1024],*fname,*dir="";
     
     trace(3,"uncompress: file=%s\n",file);
     
@@ -3646,16 +3734,19 @@ extern int uncompress(const char *file, char *uncfile)
     if ((p=strrchr(tmpfile,'.'))&&!strcmp(p,".tar")) {
         
         strcpy(uncfile,tmpfile); uncfile[p-tmpfile]='\0';
-#ifdef WIN32
         strcpy(buff,tmpfile);
         fname=buff;
+#ifdef WIN32
         if ((p=strrchr(buff,'\\'))) {
             *p='\0'; dir=fname; fname=p+1;
         }
         sprintf(cmd,"set PATH=%%CD%%;%%PATH%% & cd /D \"%s\" & tar -xf \"%s\"",
                 dir,fname);
 #else
-        sprintf(cmd,"tar -xf \"%s\"",tmpfile);
+        if ((p=strrchr(buff,'/'))) {
+            *p='\0'; dir=fname; fname=p+1;
+        }
+        sprintf(cmd,"tar -C \"%s\" -xf \"%s\"",dir,tmpfile);
 #endif
         if (execcmd(cmd)) {
             if (stat) remove(tmpfile);

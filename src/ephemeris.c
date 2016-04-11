@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * ephemeris.c : satellite ephemeris and clock functions
 *
-*          Copyright (C) 2010-2013 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2010-2014 by T.TAKASU, All rights reserved.
 *
 * references :
 *     [1] IS-GPS-200D, Navstar GPS Space Segment/Navigation User Interfaces,
@@ -47,6 +47,10 @@
 *           2013/03/20 1.6  fix problem on ssr clock relativitic correction
 *           2013/09/01 1.7  support negative pseudorange
 *                           fix bug on variance in case of ura ssr = 63
+*           2013/11/11 1.8  change constant MAXAGESSR 70.0 -> 90.0
+*           2014/10/24 1.9  fix bug on return of var_uraeph() if ura<0||15<ura
+*           2014/12/07 1.10 modify MAXDTOE for qzss,gal and bds
+*                           test max number of iteration for Kepler
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -77,9 +81,11 @@ static const char rcsid[]="$Id:$";
 #define DEFURASSR 0.15            /* default accurary of ssr corr (m) */
 #define MAXECORSSR 10.0           /* max orbit correction of ssr (m) */
 #define MAXCCORSSR (1E-6*CLIGHT)  /* max clock correction of ssr (m) */
-#define MAXAGESSR 70.0            /* max age of ssr orbit and clock (s) */
+#define MAXAGESSR 90.0            /* max age of ssr orbit and clock (s) */
 #define MAXAGESSR_HRCLK 10.0      /* max age of ssr high-rate clock (s) */
 #define STD_BRDCCLK 30.0          /* error of broadcast clock (m) */
+
+#define MAX_ITER_KEPLER 30        /* max number of iteration of Kelpler */
 
 /* variance by ura ephemeris (ref [1] 20.3.3.3.1.1) --------------------------*/
 static double var_uraeph(int ura)
@@ -88,7 +94,7 @@ static double var_uraeph(int ura)
         2.4,3.4,4.85,6.85,9.65,13.65,24.0,48.0,96.0,192.0,384.0,768.0,1536.0,
         3072.0,6144.0
     };
-    return ura<0||15<ura?6144.0:SQR(ura_value[ura]);
+    return ura<0||15<ura?SQR(6144.0):SQR(ura_value[ura]);
 }
 /* variance by ura ssr (ref [4]) ---------------------------------------------*/
 static double var_urassr(int ura)
@@ -194,8 +200,12 @@ extern void eph2pos(gtime_t time, const eph_t *eph, double *rs, double *dts,
     }
     M=eph->M0+(sqrt(mu/(eph->A*eph->A*eph->A))+eph->deln)*tk;
     
-    for (n=0,E=M,Ek=0.0;fabs(E-Ek)>RTOL_KEPLER;n++) {
+    for (n=0,E=M,Ek=0.0;fabs(E-Ek)>RTOL_KEPLER&&n<MAX_ITER_KEPLER;n++) {
         Ek=E; E-=(E-eph->e*sin(E)-M)/(1.0-eph->e*cos(E));
+    }
+    if (n>=MAX_ITER_KEPLER) {
+        trace(2,"kepler iteration overflow sat=%2d\n",eph->sat);
+        return;
     }
     sinE=sin(E); cosE=cos(E);
     
@@ -379,7 +389,12 @@ static eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
     
     trace(4,"seleph  : time=%s sat=%2d iode=%d\n",time_str(time,3),sat,iode);
     
-    tmax=MAXDTOE+1.0;
+    switch (satsys(sat,NULL)) {
+        case SYS_QZS: tmax=MAXDTOE_QZS+1.0; break;
+        case SYS_GAL: tmax=MAXDTOE_GAL+1.0; break;
+        case SYS_CMP: tmax=MAXDTOE_CMP+1.0; break;
+        default: tmax=MAXDTOE+1.0; break;
+    }
     tmin=tmax+1.0;
     
     for (i=0;i<nav->n;i++) {
@@ -623,7 +638,7 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     
     /* satellite antenna offset correction */
     if (opt) {
-        satantoff(time,rs,nav->pcvs+sat-1,dant);
+        satantoff(time,rs,sat,nav,dant);
     }
     for (i=0;i<3;i++) {
         rs[i]+=-(er[i]*deph[0]+ea[i]*deph[1]+ec[i]*deph[2])+dant[i];

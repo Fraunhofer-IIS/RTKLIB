@@ -5,19 +5,21 @@ SRC    = ../../../src
 
 # for beagleboard
 #CTARGET= -mfpu=neon -mfloat-abi=softfp -ffast-math
-CTARGET= -DENAGLO -DENAGAL -DENAQZS -DNFREQ=3
+CTARGET= -DENAGLO -DENAQZS -DENACMP -DNFREQ=3
 
-CFLAGS = -Wall -O3 -ansi -pedantic -I$(SRC) -DTRACE -DSVR_REUSEADDR $(CTARGET)
+CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) -I.. -DTRACE -DSVR_REUSEADDR $(CTARGET) -g
 LDLIBS  = -lm -lrt -lpthread -ljson
 
 all        : rtkrcv
-rtkrcv     : rtkrcv.o rtkcmn.o rtksvr.o rtkpos.o geoid.o solution.o lambda.o
+rtkrcv     : rtkrcv.o vt.o rtkcmn.o rtksvr.o rtkpos.o geoid.o solution.o lambda.o
 rtkrcv     : sbas.o stream.o rcvraw.o rtcm.o preceph.o options.o pntpos.o ppp.o ppp_ar.o
 rtkrcv     : novatel.o ublox.o ss2.o crescent.o skytraq.o gw10.o javad.o nvs.o binex.o
-rtkrcv     : ephemeris.o rinex.o ionex.o rtcm2.o rtcm3.o rtcm3e.o qzslex.o ogrp.o
+rtkrcv     : rt17.o ephemeris.o rinex.o ionex.o rtcm2.o rtcm3.o rtcm3e.o qzslex.o ogrp.o
 
 rtkrcv.o   : ../rtkrcv.c
 	$(CC) -c $(CFLAGS) ../rtkrcv.c
+vt.o       : ../vt.c
+	$(CC) -c $(CFLAGS) ../vt.c
 rtkcmn.o   : $(SRC)/rtkcmn.c
 	$(CC) -c $(CFLAGS) $(SRC)/rtkcmn.c
 rtksvr.o   : $(SRC)/rtksvr.c
@@ -74,6 +76,8 @@ binex.o    : $(SRC)/rcv/binex.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/binex.c
 ogrp.o  : $(SRC)/rcv/ogrp.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/ogrp.c
+rt17.o     : $(SRC)/rcv/rt17.c
+	$(CC) -c $(CFLAGS) $(SRC)/rcv/rt17.c
 ephemeris.o: $(SRC)/ephemeris.c
 	$(CC) -c $(CFLAGS) $(SRC)/ephemeris.c
 rinex.o    : $(SRC)/rinex.c
@@ -83,7 +87,7 @@ ionex.o    : $(SRC)/ionex.c
 qzslex.o   : $(SRC)/qzslex.c
 	$(CC) -c $(CFLAGS) $(SRC)/qzslex.c
 
-rtkrcv.o   : $(SRC)/rtklib.h
+rtkrcv.o   : $(SRC)/rtklib.h ../vt.h
 rtkcmn.o   : $(SRC)/rtklib.h
 rtksvr.o   : $(SRC)/rtklib.h
 rtkpos.o   : $(SRC)/rtklib.h
@@ -110,6 +114,7 @@ javad.o    : $(SRC)/rtklib.h
 nvs.o      : $(SRC)/rtklib.h
 binex.o    : $(SRC)/rtklib.h
 ogrp.o     : $(SRC)/rtklib.h
+rt17.o     : $(SRC)/rtklib.h
 ephemeris.o: $(SRC)/rtklib.h
 rinex.o    : $(SRC)/rtklib.h
 ionex.o    : $(SRC)/rtklib.h

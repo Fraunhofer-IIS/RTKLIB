@@ -33,6 +33,9 @@
 *                           suppress acos domain error
 *           2013/09/01 1.4  pole tide model by iers 2010
 *                           add mode of ionosphere model off
+*           2014/05/23 1.5  add output of trop gradient in solution status
+*           2014/10/13 1.6  fix bug on P0(a[3]) computation in tide_oload()
+*                           fix bug on m2 computation in tide_pole()
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -113,6 +116,11 @@ extern void pppoutsolstat(rtk_t *rtk, int level, FILE *fp)
         i=IT(&rtk->opt);
         fprintf(fp,"$TROP,%d,%.3f,%d,%d,%.4f,%.4f\n",week,tow,rtk->sol.stat,
                 1,rtk->x[i],0.0);
+    }
+    if (rtk->opt.tropopt==TROPOPT_ESTG) {
+        i=IT(&rtk->opt);
+        fprintf(fp,"$TRPG,%d,%.3f,%d,%d,%.5f,%.5f,%.5f,%.5f\n",week,tow,
+                rtk->sol.stat,1,rtk->x[i+1],rtk->x[i+2],0.0,0.0);
     }
     if (rtk->sol.stat==SOLQ_NONE||level<=1) return;
     
@@ -237,7 +245,7 @@ static void tide_oload(gtime_t tut, const double *odisp, double *denu)
     a[0]=fday;
     a[1]=(279.69668+36000.768930485*t+3.03E-4*t2)*D2R; /* H0 */
     a[2]=(270.434358+481267.88314137*t-0.001133*t2+1.9E-6*t3)*D2R; /* S0 */
-    a[3]=(334.329653+4069.0340329577*t+0.010325*t2-1.2E-5*t3)*D2R; /* P0 */
+    a[3]=(334.329653+4069.0340329577*t-0.010325*t2-1.2E-5*t3)*D2R; /* P0 */
     a[4]=2.0*PI;
     
     /* displacements by 11 constituents */
@@ -281,8 +289,9 @@ static void tide_pole(gtime_t tut, const double *pos, const double *erpv,
     /* iers mean pole (mas) */
     iers_mean_pole(tut,&xp_bar,&yp_bar);
     
+    /* ref [7] eq.7.24 */
     m1= erpv[0]/AS2R-xp_bar*1E-3; /* (as) */
-    m2=-erpv[1]/AS2R-yp_bar*1E-3;
+    m2=-erpv[1]/AS2R+yp_bar*1E-3;
     
     /* sin(2*theta) = sin(2*phi), cos(2*theta)=-cos(2*phi) */
     cosl=cos(pos[1]);

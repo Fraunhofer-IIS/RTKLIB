@@ -8,7 +8,7 @@ LONGITUDE="${LONGITUDE:-"7.659363180"}"
 FORMAT="${FORMAT:-"nov"}"
 EXTENSION="${EXTENSION:-".out"}"
 
-$APP_PATH/convbin -r $FORMAT $IN_PATH/$LOG_NAME$EXTENSION
+$APP_PATH/convbin -r $FORMAT $IN_PATH/$LOG_NAME$EXTENSION -d $APP_PATH
 $APP_PATH/rnx2rtkp -p 0 $LOG_NAME.nav $LOG_NAME.obs > $LOG_NAME.pos
 
 latitude=$(tail -n 1 $LOG_NAME.pos | tr -s ' ' | cut -d ' ' -f 3)

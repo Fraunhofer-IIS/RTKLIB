@@ -15,6 +15,9 @@
 
 
 
+
+
+
 USEFORM("..\appcmn\tcpoptdlg.cpp", TcpOptDialog);
 USEFORM("..\appcmn\serioptdlg.cpp", SerialOptDialog);
 USEFORM("..\appcmn\refdlg.cpp", RefDialog);
