@@ -35,6 +35,11 @@ static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *c
             *freq = 1;
             return 0;
         }
+        if (strcmp(sig_str, "L2CM") == 0){
+            *code = CODE_L2S;
+            *freq = 1;
+            return 0;
+        }
         if (strcmp(sig_str, "L5I") == 0) {
             *code = CODE_L5I;
             *freq = 2;
