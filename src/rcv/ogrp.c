@@ -376,24 +376,13 @@ static int decode_ogrp_channel_measurements(raw_t *raw, json_object *jobj) {
 
 static int decode_ogrp_ephemeris(raw_t *raw, json_object *jobj) {
     if (raw->obs.n == 0) return -1;
-    json_object *ephem_array;
-    int i, num_ephem, status;
+    json_object *ephem;
 
     trace(5,"decode_ogrp_ephemeris:\n");
 
-    status = get_value_check_type(jobj, "ephemeris", &ephem_array, json_type_array);
-    if (status < 0) num_ephem = 0;
-    else num_ephem = json_object_array_length(ephem_array);
+    if (get_value_check_type(jobj, "ephemeris", &ephem, json_type_object) < 0) return -1;
 
-    for (i = 0; i < num_ephem; i++) {
-        json_object *ephem = json_object_array_get_idx(ephem_array, i);
-        if ((status = decode_ogrp_ephemeris_element(raw, ephem)) != 2) {
-            continue;
-        }
-        break;
-    }
-
-    return status;
+    return decode_ogrp_ephemeris_element(raw, ephem);
 }
 
 static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
