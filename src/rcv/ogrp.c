@@ -186,7 +186,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     raw->obs.data[obs_nr].P[freq_nr]    = pseudorange;
     raw->obs.data[obs_nr].D[freq_nr]    = doppler;
     raw->obs.data[obs_nr].L[freq_nr]    = -carrier_phase;
-    raw->obs.data[obs_nr].SNR[freq_nr]  = snr;
+    raw->obs.data[obs_nr].SNR[freq_nr]  = snr * 4.0 + 0.5;
     raw->obs.data[obs_nr].LLI[freq_nr]  = lli;
     raw->obs.data[obs_nr].code[freq_nr] = code;
 
