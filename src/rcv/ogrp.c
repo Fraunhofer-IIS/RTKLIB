@@ -7,7 +7,7 @@
 
 const static double gpst0[]={1980,1, 6,0,0,0};
 
-static int get_value_check_type(json_object *jobj, char* key, json_object **value, json_type type) {
+static int get_value_check_type(json_object *jobj, const char* key, json_object **value, json_type type) {
     trace(5,"get_value_check_type:\n");
 
     if (json_object_object_get_ex(jobj, key, value) == 0) {
@@ -116,10 +116,21 @@ static int checkpri(int freq) {
     return freq < NFREQ ? freq : -1;
 }
 
+int json_get_number(json_object *jobj, const char *key, double *number) {
+    json_object *jnumber;
+    if (get_value_check_type(jobj, key, &jnumber, json_type_double) < 0) {
+        if (get_value_check_type(jobj, key, &jnumber, json_type_int) < 0) return -1;
+        *number = (double)json_object_get_int(jnumber);
+    } else {
+        *number = json_object_get_double(jnumber);
+    }
+    return 0;
+}
+
 static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
-    double pseudorange, doppler, carrier_phase, snr, locktime;
-    int sat_id, sat;
-    json_object *jpseudorange, *jdoppler, *jcarrier_phase, *jsnr, *jlocktime, *jsat_id, *jgnss, *jsignal_type, *jchannel_state;
+    double pseudorange, doppler, carrier_phase, snr, locktime, sat_id;
+    int sat;
+    json_object *jgnss, *jsignal_type, *jchannel_state;
     int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
     int lli;
@@ -154,46 +165,16 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
         trace(2, "Discard channel measurement. Signal priority is too low for %s %s\n", gnss, signal_type);
     }
 
-    if (get_value_check_type(jobj, "pseudo_range", &jpseudorange, json_type_double) < 0) {
-        if (get_value_check_type(jobj, "pseudo_range", &jpseudorange, json_type_int) < 0) return -1;
-        pseudorange = (double)json_object_get_int(jpseudorange);
-    } else {
-        pseudorange = json_object_get_double(jpseudorange);
-    }
+    if (json_get_number(jobj, "pseudo_range",  &pseudorange)   != 0) return -1;
+    if (json_get_number(jobj, "doppler",       &doppler)       != 0) return -1;
+    if (json_get_number(jobj, "carrier_phase", &carrier_phase) != 0) return -1;
+    if (json_get_number(jobj, "snr",           &snr)           != 0) return -1;
+    if (json_get_number(jobj, "locktime",      &locktime)      != 0) return -1;
 
-    if (get_value_check_type(jobj, "doppler", &jdoppler, json_type_double) < 0) {
-        if (get_value_check_type(jobj, "doppler", &jdoppler, json_type_int) < 0) return -1;
-        doppler = (double)json_object_get_int(jdoppler);
-    } else {
-        doppler = json_object_get_double(jdoppler);
-    }
-
-    if (get_value_check_type(jobj, "carrier_phase", &jcarrier_phase, json_type_double) < 0) {
-        if (get_value_check_type(jobj, "carrier_phase", &jcarrier_phase, json_type_int) < 0) return -1;
-        carrier_phase = (double)json_object_get_int(jcarrier_phase);
-    } else {
-        carrier_phase = json_object_get_double(jcarrier_phase);
-    }
-
-    if (get_value_check_type(jobj, "snr", &jsnr, json_type_double) < 0) {
-        if (get_value_check_type(jobj, "snr", &jsnr, json_type_int) < 0) return -1;
-        snr = (double)json_object_get_int(jsnr);
-    } else {
-        snr = json_object_get_double(jsnr);
-    }
-
-    if (get_value_check_type(jobj, "satellite_id", &jsat_id, json_type_int) < 0) return -1;
-    sat_id = json_object_get_int(jsat_id);
-    if (!(sat = satno(sys, sat_id))) {
-        trace(3,"satellite number error: sys=%d, sat_id=%d\n", sys, sat_id);
+    if (json_get_number(jobj, "satellite_id", &sat_id) != 0) return -1;
+    if (!(sat = satno(sys, (int)sat_id))) {
+        trace(3,"satellite number error: sys=%d, sat_id=%d\n", sys, (int)sat_id);
         return -1;
-    }
-
-    if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_double) < 0) {
-        if (get_value_check_type(jobj, "locktime", &jlocktime, json_type_int) < 0) return -1;
-        locktime = (double)json_object_get_int(jlocktime);
-    } else {
-        locktime = json_object_get_double(jlocktime);
     }
 
     if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat - 1][freq_nr] + 0.05 <= tt;
@@ -218,13 +199,10 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
 static int decode_ogrp_ephemeris_element(raw_t *raw, json_object *jobj) {
     eph_t eph = {0};
 
-    json_object *jgnss, *jsat_id, *jweek_number, *jephemeris_issue, *jclock_issue, *jroot_a;
-    json_object *jclock_reference, *jephemeris_reference, *jecc, *jaf_0, *jaf_1, *jaf_2;
-    json_object *jm_0, *jomega_0, *jomega_dot, *jcrc, *jcrs, *jcuc, *jcus, *jcic, *jcis;
-    json_object *jdeln, *jinc_0, *jinc_dot, *jgroup_delay, *jarg_per;
+    json_object *jgnss;
     char *gnss;
-    int sat_id, sat, sys, week, toc;
-    double sqrtA, tow, tt;
+    int sat, sys;
+    double sqrtA, tow, tt, sat_id, toc, week, value;
 
     if (json_object_get_type(jobj) != json_type_object) {
         trace(2, "decode_ogrp_ephemeris_element: Type error, no object\n");
@@ -244,99 +222,57 @@ static int decode_ogrp_ephemeris_element(raw_t *raw, json_object *jobj) {
         return -1;
     }
 
-    if (get_value_check_type(jobj, "satellite_id", &jsat_id, json_type_int) < 0) return -1;
-    sat_id = json_object_get_int(jsat_id);
-    if (!(sat = satno(sys, sat_id))) {
-        trace(3,"satellite number error: sys=%d, sat_id=%d\n", sys, sat_id);
+    if (json_get_number(jobj, "satellite_id", &sat_id)   != 0) return -1;
+    if (!(sat = satno(sys, (int)sat_id))) {
+        trace(3,"satellite number error: sys=%d, sat_id=%d\n", sys, (int)sat_id);
         return -1;
     }
 
-    if (get_value_check_type(jobj, "ephemeris_issue", &jephemeris_issue, json_type_int) < 0) return -1;
-    eph.iode = json_object_get_int(jephemeris_issue);
+    if (json_get_number(jobj, "ephemeris_issue", &value) != 0) return -1;
+    eph.iode = (int)value;
     if (eph.iode == raw->nav.eph[sat - 1].iode) return -1;
 
-    if (get_value_check_type(jobj, "clock_issue", &jclock_issue, json_type_int) < 0) return -1;
-    eph.iodc = json_object_get_int(jclock_issue);
+    if (json_get_number(jobj, "clock_issue", &value) != 0) return -1;
+    eph.iodc = (int)value;
     if (eph.iodc == raw->nav.eph[sat - 1].iodc) return -1;
 
-    if (get_value_check_type(jobj, "root_a", &jroot_a, json_type_double) < 0) return -1;
-    sqrtA = json_object_get_double(jroot_a);
+    if (json_get_number(jobj, "root_a", &sqrtA) != 0) return -1;
     eph.A = sqrtA * sqrtA;
 
-    if (get_value_check_type(jobj, "ephemeris_reference", &jephemeris_reference, json_type_double) < 0) return -1;
-    eph.toes = json_object_get_double(jephemeris_reference);
+    if (json_get_number(jobj, "ephemeris_reference", &eph.toes) != 0) return -1;
+    if (json_get_number(jobj, "clock_reference",     &toc)      != 0) return -1;
+    if (json_get_number(jobj, "week_number",         &week)     != 0) return -1;
 
-    if (get_value_check_type(jobj, "clock_reference", &jclock_reference, json_type_double) < 0) return -1;
-    toc = json_object_get_double(jclock_reference);
-
-    if (get_value_check_type(jobj, "week_number", &jweek_number, json_type_int) < 0) return -1;
-    week = json_object_get_int(jweek_number);
-
-    eph.week = adjgpsweek(week);
-    tow = time2gpst(raw->time, &week);
+    eph.week = adjgpsweek((int)week);
+    tow = time2gpst(raw->time, (int*)&week);
     eph.ttr=gpst2time(eph.week,tow);
-    eph.toc=gpst2time(eph.week,toc);
+    eph.toc=gpst2time(eph.week,(int)toc);
     tow=time2gpst(eph.ttr,&eph.week);
     toc=time2gpst(eph.toc,NULL);
     if      (eph.toes<tow-302400.0) {eph.week++; tow-=604800.0;}
     else if (eph.toes>tow+302400.0) {eph.week--; tow+=604800.0;}
     eph.toe=gpst2time(eph.week,eph.toes);
-    eph.toc=gpst2time(eph.week,toc);
+    eph.toc=gpst2time(eph.week,(int)toc);
     eph.ttr=gpst2time(eph.week,tow);
 
-    if (get_value_check_type(jobj, "ecc", &jecc, json_type_double) < 0) return -1;
-    eph.e = json_object_get_double(jecc);
-
-    if (get_value_check_type(jobj, "af_0", &jaf_0, json_type_double) < 0) return -1;
-    eph.f0 = json_object_get_double(jaf_0);
-
-    if (get_value_check_type(jobj, "af_1", &jaf_1, json_type_double) < 0) return -1;
-    eph.f1 = json_object_get_double(jaf_1);
-
-    if (get_value_check_type(jobj, "af_2", &jaf_2, json_type_double) < 0) return -1;
-    eph.f2 = json_object_get_double(jaf_2);
-
-    if (get_value_check_type(jobj, "m_0", &jm_0, json_type_double) < 0) return -1;
-    eph.M0 = json_object_get_double(jm_0);
-
-    if (get_value_check_type(jobj, "omega_0", &jomega_0, json_type_double) < 0) return -1;
-    eph.OMG0 = json_object_get_double(jomega_0);
-
-    if (get_value_check_type(jobj, "omega_dot", &jomega_dot, json_type_double) < 0) return -1;
-    eph.OMGd = json_object_get_double(jomega_dot);
-
-    if (get_value_check_type(jobj, "crc", &jcrc, json_type_double) < 0) return -1;
-    eph.crc = json_object_get_double(jcrc);
-
-    if (get_value_check_type(jobj, "crs", &jcrs, json_type_double) < 0) return -1;
-    eph.crs = json_object_get_double(jcrs);
-
-    if (get_value_check_type(jobj, "cuc", &jcuc, json_type_double) < 0) return -1;
-    eph.cuc = json_object_get_double(jcuc);
-
-    if (get_value_check_type(jobj, "cus", &jcus, json_type_double) < 0) return -1;
-    eph.cus = json_object_get_double(jcus);
-
-    if (get_value_check_type(jobj, "cic", &jcic, json_type_double) < 0) return -1;
-    eph.cic = json_object_get_double(jcic);
-
-    if (get_value_check_type(jobj, "cis", &jcis, json_type_double) < 0) return -1;
-    eph.cis = json_object_get_double(jcis);
-
-    if (get_value_check_type(jobj, "deln", &jdeln, json_type_double) < 0) return -1;
-    eph.deln = json_object_get_double(jdeln);
-
-    if (get_value_check_type(jobj, "inc_0", &jinc_0, json_type_double) < 0) return -1;
-    eph.i0 = json_object_get_double(jinc_0);
-
-    if (get_value_check_type(jobj, "inc_dot", &jinc_dot, json_type_double) < 0) return -1;
-    eph.idot = json_object_get_double(jinc_dot);
-
-    if (get_value_check_type(jobj, "group_delay", &jgroup_delay, json_type_double) < 0) return -1;
-    eph.tgd[0] = json_object_get_double(jgroup_delay);
-
-    if (get_value_check_type(jobj, "arg_per", &jarg_per, json_type_double) < 0) return -1;
-    eph.omg = json_object_get_double(jarg_per);
+    if (json_get_number(jobj, "ecc",         &eph.e)      != 0) return -1;
+    if (json_get_number(jobj, "af_0",        &eph.f0)     != 0) return -1;
+    if (json_get_number(jobj, "af_1",        &eph.f1)     != 0) return -1;
+    if (json_get_number(jobj, "af_2",        &eph.f2)     != 0) return -1;
+    if (json_get_number(jobj, "m_0",         &eph.M0)     != 0) return -1;
+    if (json_get_number(jobj, "omega_0",     &eph.OMG0)   != 0) return -1;
+    if (json_get_number(jobj, "omega_dot",   &eph.OMGd)   != 0) return -1;
+    if (json_get_number(jobj, "crc",         &eph.crc)    != 0) return -1;
+    if (json_get_number(jobj, "crs",         &eph.crs)    != 0) return -1;
+    if (json_get_number(jobj, "cuc",         &eph.cuc)    != 0) return -1;
+    if (json_get_number(jobj, "cus",         &eph.cus)    != 0) return -1;
+    if (json_get_number(jobj, "cic",         &eph.cic)    != 0) return -1;
+    if (json_get_number(jobj, "cis",         &eph.cis)    != 0) return -1;
+    if (json_get_number(jobj, "deln",        &eph.deln)   != 0) return -1;
+    if (json_get_number(jobj, "inc_0",       &eph.i0)     != 0) return -1;
+    if (json_get_number(jobj, "inc_dot",     &eph.idot)   != 0) return -1;
+    if (json_get_number(jobj, "group_delay", &eph.tgd[0]) != 0) return -1;
+    if (json_get_number(jobj, "arg_per",     &eph.omg)    != 0) return -1;
 
     /* Missing parameter eph.tgd[1] --> BGD: E5B-E1 (s) */
 
