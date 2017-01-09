@@ -21,7 +21,7 @@ static int get_value_check_type(json_object *jobj, const char* key, json_object 
     return 0;
 }
 
-static int get_system_and_signal(char *gnss_str, char *sig_str, int *sys, int *code, int *freq) {
+static int get_system_and_signal(const char *gnss_str, const char *sig_str, int *sys, int *code, int *freq) {
     /* signal frequency:  0:L1, 1:L2, 2:L5, 3:L6, 4:L7, 5:L8 */
     if (strcmp(gnss_str, "GPS") == 0) {
         *sys = SYS_GPS;
@@ -134,7 +134,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     int freq_nr, obs_nr;
     double tt = timediff(raw->time,raw->tobs);
     int lli;
-    char *gnss, *signal_type, *channel_state;
+    const char *gnss, *signal_type, *channel_state;
     int sys, code, freq;
 
     trace(5,"decode_ogrp_ch_meas:\n");
@@ -200,9 +200,9 @@ static int decode_ogrp_ephemeris_element(raw_t *raw, json_object *jobj) {
     eph_t eph = {0};
 
     json_object *jgnss;
-    char *gnss;
+    const char *gnss;
     int sat, sys;
-    double sqrtA, tow, tt, sat_id, toc, week, value;
+    double sqrtA, tow, sat_id, toc, week, value;
 
     if (json_object_get_type(jobj) != json_type_object) {
         trace(2, "decode_ogrp_ephemeris_element: Type error, no object\n");
@@ -311,8 +311,9 @@ static int decode_ogrp_channel_measurements(raw_t *raw, json_object *jobj) {
 }
 
 static int decode_ogrp_ephemeris(raw_t *raw, json_object *jobj) {
-    if (raw->obs.n == 0) return -1;
     json_object *ephem;
+
+    if (raw->obs.n == 0) return -1;
 
     trace(5,"decode_ogrp_ephemeris:\n");
 
