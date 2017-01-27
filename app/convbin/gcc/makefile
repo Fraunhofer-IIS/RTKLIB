@@ -8,17 +8,18 @@ SRC    = ../../../src
 
 INCLUDE= -I$(SRC)
 OPTIONS= -DTRACE -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=7 -DNEXOBS=3
-
 CFLAGS = -O3 -ansi -pedantic -Wall -Wno-unused-but-set-variable $(INCLUDE) $(OPTIONS) -g
-
-LDLIBS = -lm -lrt
+# TODO this will fail if the lib is not found. To search for the library it
+# should be better to use a Makefile generator but this will be tough to do.
+# We can keep this for now but we can not merge this with upstream then.
+LDLIBS = -lm -lrt -ljson
 
 all  : convbin
 
 convbin    : convbin.o rtkcmn.o rinex.o sbas.o preceph.o rcvraw.o convrnx.o
 convbin    : rtcm.o rtcm2.o rtcm3.o rtcm3e.o pntpos.o ephemeris.o ionex.o
 convbin    : novatel.o ss2.o ublox.o crescent.o skytraq.o gw10.o javad.o nvs.o
-convbin    : binex.o rt17.o qzslex.o septentrio.o cmr.o
+convbin    : binex.o rt17.o qzslex.o septentrio.o cmr.o ogrp.o
 
 convbin.o  : ../convbin.c
 	$(CC) -c $(CFLAGS) ../convbin.c
@@ -66,6 +67,8 @@ nvs.o      : $(SRC)/rcv/nvs.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/nvs.c
 binex.o    : $(SRC)/rcv/binex.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/binex.c
+ogrp.o    : $(SRC)/rcv/ogrp.c
+	$(CC) -c $(CFLAGS) $(SRC)/rcv/ogrp.c
 rt17.o     : $(SRC)/rcv/rt17.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/rt17.c
 qzslex.o   : $(SRC)/qzslex.c
@@ -98,6 +101,7 @@ gw10.o     : $(SRC)/rtklib.h
 javad.o    : $(SRC)/rtklib.h
 nvs.o      : $(SRC)/rtklib.h
 binex.o    : $(SRC)/rtklib.h
+ogrp.o     : $(SRC)/rtklib.h
 rt17.o     : $(SRC)/rtklib.h
 qzslex.o   : $(SRC)/rtklib.h
 septentrio.o: $(SRC)/rtklib.h

@@ -248,7 +248,7 @@ extern "C" {
 #define MAXSTRRTK   8                   /* max number of stream in RTK server */
 #define MAXSBSMSG   32                  /* max number of SBAS msg in RTK server */
 #define MAXSOLMSG   8191                /* max length of solution message */
-#define MAXRAWLEN   4096                /* max length of receiver raw message */
+#define MAXRAWLEN   16384               /* max length of receiver raw message */
 #define MAXERRMSG   4096                /* max length of error/warning message */
 #define MAXANT      64                  /* max length of station name/antenna type */
 #define MAXSOLBUF   256                 /* max number of solution buffer */
@@ -435,15 +435,17 @@ extern "C" {
 #define STRFMT_JAVAD 9                  /* stream format: JAVAD GRIL/GREIS */
 #define STRFMT_NVS   10                 /* stream format: NVS NVC08C */
 #define STRFMT_BINEX 11                 /* stream format: BINEX */
-#define STRFMT_RT17  12                 /* stream format: Trimble RT17 */
-#define STRFMT_SEPT  13                 /* stream format: Septentrio */
-#define STRFMT_CMR   14                 /* stream format: CMR/CMR+ */
-#define STRFMT_LEXR  15                 /* stream format: Furuno LPY-10000 */
-#define STRFMT_RINEX 16                 /* stream format: RINEX */
-#define STRFMT_SP3   17                 /* stream format: SP3 */
-#define STRFMT_RNXCLK 18                /* stream format: RINEX CLK */
-#define STRFMT_SBAS  19                 /* stream format: SBAS messages */
-#define STRFMT_NMEA  20                 /* stream format: NMEA 0183 */
+#define STRFMT_OGRP  12                 /* stream format: OGRP */
+#define STRFMT_RT17  13                 /* stream format: Trimble RT17 */
+#define STRFMT_SEPT  14                 /* stream format: Septentrio */
+#define STRFMT_CMR   15                 /* stream format: CMR/CMR+ */
+#define STRFMT_LEXR  16                 /* stream format: Furuno LPY-10000 */
+#define STRFMT_RINEX 17                 /* stream format: RINEX */
+#define STRFMT_SP3   18                 /* stream format: SP3 */
+#define STRFMT_RNXCLK 19                /* stream format: RINEX CLK */
+#define STRFMT_SBAS  20                 /* stream format: SBAS messages */
+#define STRFMT_NMEA  21                 /* stream format: NMEA 0183 */
+
 #ifndef EXTLEX
 #define MAXRCVFMT    14                 /* max number of receiver format */
 #else
@@ -1633,6 +1635,7 @@ EXPORT int input_rt17  (raw_t *raw, unsigned char data);
 EXPORT int input_sbf   (raw_t *raw, unsigned char data);
 EXPORT int input_cmr   (raw_t *raw, unsigned char data);
 EXPORT int input_lexr  (raw_t *raw, unsigned char data);
+EXPORT int input_ogrp  (raw_t *raw, unsigned char data);
 EXPORT int input_oem4f (raw_t *raw, FILE *fp);
 EXPORT int input_oem3f (raw_t *raw, FILE *fp);
 EXPORT int input_ubxf  (raw_t *raw, FILE *fp);
@@ -1647,6 +1650,7 @@ EXPORT int input_rt17f (raw_t *raw, FILE *fp);
 EXPORT int input_sbff  (raw_t *raw, FILE *fp);
 EXPORT int input_cmrf  (raw_t *raw, FILE *fp);
 EXPORT int input_lexrf (raw_t *raw, FILE *fp);
+EXPORT int input_ogrpf (raw_t *raw, FILE *fp);
 
 EXPORT int gen_ubx (const char *msg, unsigned char *buff);
 EXPORT int gen_stq (const char *msg, unsigned char *buff);
