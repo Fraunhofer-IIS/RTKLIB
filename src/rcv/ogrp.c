@@ -60,7 +60,7 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 0;
             return 0;
         }
-        if (strcmp(sig_str, "E5aI") == 0) {
+        if ((strcmp(sig_str, "E5a") == 0) || (strcmp(sig_str, "E5aI") == 0)) {
             *code = CODE_L5I;
             *freq = 2;
             return 0;
@@ -70,7 +70,7 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 2;
             return 0;
         }
-        if (strcmp(sig_str, "E5bI") == 0) {
+        if ((strcmp(sig_str, "E5b") == 0) || (strcmp(sig_str, "E5bI") == 0)) {
             *code = CODE_L7I;
             *freq = 4;
             return 0;
