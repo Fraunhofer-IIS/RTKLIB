@@ -55,12 +55,7 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
     }
     if (strcmp(gnss_str, "Galileo") == 0) {
         *sys = SYS_GAL;
-        if (strcmp(sig_str, "E1B") == 0) {
-            *code = CODE_L1B;
-            *freq = 0;
-            return 0;
-        }
-        if (strcmp(sig_str, "E1C") == 0) {
+        if ((strcmp(sig_str, "E1B") == 0) || strcmp(sig_str, "E1C") == 0) {
             *code = CODE_L1C;
             *freq = 0;
             return 0;
