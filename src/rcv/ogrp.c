@@ -320,7 +320,7 @@ static int decode_ogrp_ephemeris(raw_t *raw, json_object *jobj) {
 static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     json_object* timestamp;
     json_type type;
-    double utc_offset, gps_leap_sec;
+    double utc_offset;
 
     trace(5,"decode_ogrp_timestamp:\n");
 
@@ -329,10 +329,9 @@ static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
         return -1;
     }
 
-    gps_leap_sec = 17.0;
     /* Time between GPS start (05.01.1980) and 01.01.1970
      * 432000.0 -> 5 days; 315532800.0 -> 10 years */
-    utc_offset = 432000.0 + 315532800.0 - gps_leap_sec;
+    utc_offset = 432000.0 + 315532800.0;
     raw->time = epoch2time(gpst0);
     type = json_object_get_type(timestamp);
     switch (type) {
