@@ -320,7 +320,7 @@ static int decode_ogrp_ephemeris(raw_t *raw, json_object *jobj) {
 static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     json_object* timestamp;
     json_type type;
-    double utc_offset;
+    double utc_offset, t;
 
     trace(5,"decode_ogrp_timestamp:\n");
 
@@ -336,10 +336,14 @@ static int decode_ogrp_timestamp(raw_t *raw, json_object *jobj) {
     type = json_object_get_type(timestamp);
     switch (type) {
     case json_type_int:
-        raw->time.time += (json_object_get_int(timestamp) - (int)utc_offset);
+        t = json_object_get_int(timestamp);
+        if (t < 0.0) return -1;
+        raw->time.time += (t - (int)utc_offset);
         break;
     case json_type_double:
-        raw->time.time += (json_object_get_double(timestamp) - utc_offset);
+        t = json_object_get_double(timestamp);
+        if (t < 0.0) return -1;
+        raw->time.time += (t - utc_offset);
         raw->time.sec = json_object_get_double(timestamp) - (int)json_object_get_double(timestamp);
         break;
     case json_type_string:
