@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * ublox.c : ublox receiver dependent functions
 *
-*          Copyright (C) 2007-2016 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2007-2017 by T.TAKASU, All rights reserved.
 *          Copyright (C) 2014 by T.SUZUKI, All rights reserved.
 *
 * reference :
@@ -51,6 +51,10 @@
 *           2016/08/20 1.21 add test of std-dev for carrier-phase valid
 *           2016/08/26 1.22 add option -STD_SLIP to test slip by std-dev of cp
 *                           fix on half-cyc valid for sbas in trkmeas
+*           2017/04/11 1.23 (char *) -> (signed char *)
+*                           fix bug on week handover in decode_trkmeas/trkd5()
+*                           fix bug on prn for geo in decode_cnav()
+*           2017/06/10 1.24 output half-cycle-subtracted flag
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -84,11 +88,9 @@
 
 #define ROUND(x)    (int)floor((x)+0.5)
 
-static const char rcsid[]="$Id: ublox.c,v 1.2 2008/07/14 00:05:05 TTAKA Exp $";
-
 /* get fields (little-endian) ------------------------------------------------*/
 #define U1(p) (*((unsigned char *)(p)))
-#define I1(p) (*((char *)(p)))
+#define I1(p) (*((signed char *)(p)))
 static unsigned short U2(unsigned char *p) {unsigned short u; memcpy(&u,p,2); return u;}
 static unsigned int   U4(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); return u;}
 static int            I4(unsigned char *p) {int            u; memcpy(&u,p,4); return u;}
@@ -101,7 +103,7 @@ static double         I8(unsigned char *p) {return I4(p+4)*4294967296.0+U4(p);}
 static void setU1(unsigned char *p, unsigned char  u) {*p=u;}
 static void setU2(unsigned char *p, unsigned short u) {memcpy(p,&u,2);}
 static void setU4(unsigned char *p, unsigned int   u) {memcpy(p,&u,4);}
-static void setI1(unsigned char *p, char           i) {*p=(unsigned char)i;}
+static void setI1(unsigned char *p, signed char    i) {*p=(unsigned char)i;}
 static void setI2(unsigned char *p, short          i) {memcpy(p,&i,2);}
 static void setI4(unsigned char *p, int            i) {memcpy(p,&i,4);}
 static void setR4(unsigned char *p, float          r) {memcpy(p,&r,4);}
@@ -181,8 +183,8 @@ static int decode_rxmraw(raw_t *raw)
     time=gpst2time(week,tow*0.001);
     
     if (week==0) {
-        trace(2,"ubx rxmraw week=0 error: len=%d nsat=%d\n",raw->len,nsat);
-        return -1;
+        trace(3,"ubx rxmraw week=0 error: len=%d nsat=%d\n",raw->len,nsat);
+        return 0;
     }
     /* time tag adjustment */
     if (tadj>0.0) {
@@ -250,8 +252,8 @@ static int decode_rxmrawx(raw_t *raw)
     time=gpst2time(week,tow);
     
     if (week==0) {
-        trace(2,"ubx rxmrawx week=0 error: len=%d nsat=%d\n",raw->len,nsat);
-        return -1;
+        trace(3,"ubx rxmrawx week=0 error: len=%d nsat=%d\n",raw->len,nsat);
+        return 0;
     }
     if (raw->outtype) {
         sprintf(raw->msgtype,"UBX RXM-RAWX  (%4d): time=%s nsat=%d",raw->len,
@@ -308,18 +310,30 @@ static int decode_rxmrawx(raw_t *raw)
         
         lockt=U2(p+24);    /* lock time count (ms) */
         slip=lockt==0||lockt<raw->lockt[sat-1][0]?1:0;
+#if 0
         if (std_slip>0) {
             slip|=(cpstd>=std_slip)?1:0; /* slip by std-dev of cp */
         }
+#else
+        if (std_slip>0) {
+            cp1=0.0;
+        }
+#endif
         halfv=tstat&4?1:0; /* half cycle valid */
         halfc=tstat&8?1:0; /* half cycle subtracted from phase */
         
         if (cp1!=0.0) { /* carrier-phase valid */
             
             /* LLI: bit1=loss-of-lock,bit2=half-cycle-invalid */
-            raw->obs.data[n].LLI[0]|=slip;
+            raw->obs.data[n].LLI[0]|=slip?LLI_SLIP:0;
+#if 0
             raw->obs.data[n].LLI[0]|=halfc!=raw->halfc[sat-1][0]?1:0;
-            raw->obs.data[n].LLI[0]|=halfv?0:2;
+#elif 1
+            raw->obs.data[n].LLI[0]|=halfc?LLI_HALFA:0; /* half-cycle subtraced */
+#else
+            raw->obs.data[n].LLI[0]|=halfc?LLI_HALFS:0; /* half-cycle subtraced */
+#endif
+            raw->obs.data[n].LLI[0]|=halfv?0:LLI_HALFC;
             raw->lockt[sat-1][0]=lockt;
             raw->halfc[sat-1][0]=halfc;
         }
@@ -518,8 +532,8 @@ static int decode_trkmeas(raw_t *raw)
     
     /* adjust week handover */
     t=time2gpst(raw->time,&week);
-    if      (tr<t-302400.0) week--;
-    else if (tr>t+302400.0) week++;
+    if      (tr<t-302400.0) week++;
+    else if (tr>t+302400.0) week--;
     time=gpst2time(week,tr);
     
     utc_gpst=timediff(gpst2utc(time),time);
@@ -640,8 +654,8 @@ static int decode_trkd5(raw_t *raw)
     
     /* adjust week handover */
     t=time2gpst(raw->time,&week);
-    if      (tr<t-302400.0) week--;
-    else if (tr>t+302400.0) week++;
+    if      (tr<t-302400.0) week++;
+    else if (tr>t+302400.0) week--;
     time=gpst2time(week,tr);
     
     trace(4,"time=%s\n",time_str(time,0));
@@ -834,7 +848,7 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         trace(2,"ubx rawsfrbx subfrm id error: sat=%2d\n",sat);
         return -1;
     }
-    if (prn>=5) { /* IGSO/MEO */
+    if (prn>5) { /* IGSO/MEO */
         
         for (i=0;i<10;i++) {
             setbitu(raw->subfrm[sat-1]+(id-1)*38,i*30,30,words[i]);
@@ -862,7 +876,9 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         if (!decode_bds_d2(raw->subfrm[sat-1],&eph)) return 0;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0) return 0; /* unchanged */
+        if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+            eph.iode==raw->nav.eph[sat-1].iode&&
+            eph.iodc==raw->nav.eph[sat-1].iodc) return 0; /* unchanged */
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -1246,7 +1262,7 @@ extern int gen_ubx(const char *msg, unsigned char *buff)
             case FU1 : setU1(q,j<narg?(unsigned char )atoi(args[j]):0); q+=1; break;
             case FU2 : setU2(q,j<narg?(unsigned short)atoi(args[j]):0); q+=2; break;
             case FU4 : setU4(q,j<narg?(unsigned int  )atoi(args[j]):0); q+=4; break;
-            case FI1 : setI1(q,j<narg?(char          )atoi(args[j]):0); q+=1; break;
+            case FI1 : setI1(q,j<narg?(signed char   )atoi(args[j]):0); q+=1; break;
             case FI2 : setI2(q,j<narg?(short         )atoi(args[j]):0); q+=2; break;
             case FI4 : setI4(q,j<narg?(int           )atoi(args[j]):0); q+=4; break;
             case FR4 : setR4(q,j<narg?(float         )atof(args[j]):0); q+=4; break;

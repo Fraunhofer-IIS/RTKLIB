@@ -3,7 +3,7 @@ object ConvOptDialog: TConvOptDialog
   Top = 0
   BorderStyle = bsDialog
   Caption = 'Options'
-  ClientHeight = 330
+  ClientHeight = 353
   ClientWidth = 421
   Color = clWhite
   Font.Charset = DEFAULT_CHARSET
@@ -17,18 +17,18 @@ object ConvOptDialog: TConvOptDialog
   PixelsPerInch = 96
   TextHeight = 13
   object Label3: TLabel
-    Left = 149
-    Top = 307
+    Left = 153
+    Top = 329
     Width = 31
     Height = 13
     Caption = 'Debug'
   end
   object Label8: TLabel
-    Left = 4
+    Left = 8
     Top = 307
-    Width = 32
+    Width = 82
     Height = 13
-    Caption = 'Option'
+    Caption = 'Receiver Options'
   end
   object Label11: TLabel
     Left = 323
@@ -39,21 +39,28 @@ object ConvOptDialog: TConvOptDialog
   end
   object Label9: TLabel
     Left = 10
-    Top = 6
-    Width = 68
+    Top = 7
+    Width = 49
     Height = 13
-    Caption = 'RINEX Version'
+    Caption = 'RINEX Ver'
   end
   object Label12: TLabel
-    Left = 172
-    Top = 6
+    Left = 207
+    Top = 7
     Width = 48
     Height = 13
     Caption = 'Station ID'
   end
+  object Label13: TLabel
+    Left = 8
+    Top = 329
+    Width = 88
+    Height = 13
+    Caption = 'Time Torelance (s)'
+  end
   object BtnOk: TButton
-    Left = 256
-    Top = 299
+    Left = 257
+    Top = 323
     Width = 81
     Height = 29
     Caption = '&OK'
@@ -62,8 +69,8 @@ object ConvOptDialog: TConvOptDialog
     OnClick = BtnOkClick
   end
   object BtnCancel: TButton
-    Left = 338
-    Top = 299
+    Left = 339
+    Top = 323
     Width = 81
     Height = 29
     Cancel = True
@@ -76,7 +83,7 @@ object ConvOptDialog: TConvOptDialog
     Top = 25
     Width = 417
     Height = 204
-    TabOrder = 5
+    TabOrder = 6
     object Label1: TLabel
       Left = 10
       Top = 71
@@ -327,7 +334,7 @@ object ConvOptDialog: TConvOptDialog
     Width = 128
     Height = 35
     Caption = 'Observation Types'
-    TabOrder = 7
+    TabOrder = 8
     object Obs1: TCheckBox
       Left = 10
       Top = 14
@@ -370,13 +377,13 @@ object ConvOptDialog: TConvOptDialog
     end
   end
   object TraceLevel: TComboBox
-    Left = 183
-    Top = 303
+    Left = 190
+    Top = 326
     Width = 63
     Height = 21
     Style = csDropDownList
     ItemIndex = 0
-    TabOrder = 10
+    TabOrder = 11
     Text = 'OFF'
     Items.Strings = (
       'OFF'
@@ -387,11 +394,11 @@ object ConvOptDialog: TConvOptDialog
       'Level 5')
   end
   object RcvOption: TEdit
-    Left = 38
-    Top = 303
-    Width = 103
+    Left = 102
+    Top = 300
+    Width = 316
     Height = 21
-    TabOrder = 9
+    TabOrder = 10
   end
   object GroupBox4: TGroupBox
     Left = 130
@@ -399,7 +406,7 @@ object ConvOptDialog: TConvOptDialog
     Width = 241
     Height = 35
     Caption = 'Frequencies'
-    TabOrder = 8
+    TabOrder = 9
     object Freq1: TCheckBox
       Left = 10
       Top = 14
@@ -466,12 +473,12 @@ object ConvOptDialog: TConvOptDialog
     Top = 243
     Width = 102
     Height = 21
-    TabOrder = 11
+    TabOrder = 12
   end
   object RnxVer: TComboBox
-    Left = 84
+    Left = 65
     Top = 2
-    Width = 83
+    Width = 64
     Height = 21
     Style = csDropDownList
     ItemIndex = 0
@@ -492,14 +499,14 @@ object ConvOptDialog: TConvOptDialog
     Top = 5
     Width = 84
     Height = 17
-    Caption = 'RINEX Name'
-    TabOrder = 3
+    Caption = 'RINEX2 Name'
+    TabOrder = 5
     OnClick = RnxFileClick
   end
   object RnxCode: TEdit
-    Left = 225
+    Left = 260
     Top = 3
-    Width = 95
+    Width = 60
     Height = 21
     TabOrder = 4
     Text = '0000'
@@ -510,7 +517,7 @@ object ConvOptDialog: TConvOptDialog
     Width = 312
     Height = 35
     Caption = 'Satellite Systems'
-    TabOrder = 6
+    TabOrder = 7
     object Nav1: TCheckBox
       Left = 10
       Top = 14
@@ -576,7 +583,23 @@ object ConvOptDialog: TConvOptDialog
     Width = 46
     Height = 30
     Caption = 'Mask...'
-    TabOrder = 12
+    TabOrder = 13
     OnClick = BtnMaskClick
+  end
+  object ChkSepNav: TCheckBox
+    Left = 137
+    Top = 5
+    Width = 66
+    Height = 17
+    Caption = 'Sep NAV'
+    TabOrder = 3
+  end
+  object TimeTol: TEdit
+    Left = 102
+    Top = 325
+    Width = 45
+    Height = 21
+    TabOrder = 14
+    Text = '0.005'
   end
 end

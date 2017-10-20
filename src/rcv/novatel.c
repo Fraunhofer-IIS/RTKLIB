@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * notvatel.c : NovAtel OEM6/OEM5/OEM4/OEM3 receiver functions
 *
-*          Copyright (C) 2007-2014 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2007-2017 by T.TAKASU, All rights reserved.
 *
 * reference :
 *     [1] NovAtel, OM-20000094 Rev6 OEMV Family Firmware Reference Manual, 2008
@@ -47,10 +47,12 @@
 *           2016/01/28 1.12 precede I/NAV for galileo ephemeris
 *                           add option -GALINAV and -GALFNAV
 *           2016/07/31 1.13 add week number check to decode oem4 messages
+*           2017/04/11 1.14 (char *) -> (signed char *)
+*                           improve unchange-test of beidou ephemeris
+*           2017/06/15 1.15 add output half-cycle-ambiguity status to LLI
+*                           improve slip-detection by lock-time rollback
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
-
-static const char rcsid[]="$Id: novatel.c,v 1.2 2008/07/14 00:05:05 TTAKA Exp $";
 
 #define OEM4SYNC1   0xAA        /* oem4 message start sync code 1 */
 #define OEM4SYNC2   0x44        /* oem4 message start sync code 2 */
@@ -103,7 +105,7 @@ static const char rcsid[]="$Id: novatel.c,v 1.2 2008/07/14 00:05:05 TTAKA Exp $"
 
 /* get fields (little-endian) ------------------------------------------------*/
 #define U1(p) (*((unsigned char *)(p)))
-#define I1(p) (*((char *)(p)))
+#define I1(p) (*((signed char *)(p)))
 static unsigned short U2(unsigned char *p) {unsigned short u; memcpy(&u,p,2); return u;}
 static unsigned int   U4(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); return u;}
 static int            I4(unsigned char *p) {int            i; memcpy(&i,p,4); return i;}
@@ -341,15 +343,16 @@ static int decode_rangecmpb(raw_t *raw)
         
         lockt=(U4(p+18)&0x1FFFFF)/32.0; /* lock time */
         
-        tt=timediff(raw->time,raw->tobs);
-        if (raw->tobs.time!=0) {
-            lli=(lockt<65535.968&&lockt-raw->lockt[sat-1][pos]+0.05<=tt)||
-                halfc!=raw->halfc[sat-1][pos];
+        if (raw->tobs[sat-1][pos].time!=0) {
+            tt=timediff(raw->time,raw->tobs[sat-1][pos]);
+            lli=(lockt<65535.968&&lockt-raw->lockt[sat-1][pos]+0.05<=tt)?LLI_SLIP:0;
         }
         else {
             lli=0;
         }
-        if (!parity) lli|=2;
+        if (!parity) lli|=LLI_HALFC;
+        if (halfc  ) lli|=LLI_HALFA;
+        raw->tobs [sat-1][pos]=raw->time;
         raw->lockt[sat-1][pos]=lockt;
         raw->halfc[sat-1][pos]=halfc;
         
@@ -377,7 +380,6 @@ static int decode_rangecmpb(raw_t *raw)
 #endif
         }
     }
-    raw->tobs=raw->time;
     return 1;
 }
 /* decode rangeb -------------------------------------------------------------*/
@@ -430,17 +432,19 @@ static int decode_rangeb(raw_t *raw)
         if (sys==SYS_GLO&&raw->nav.geph[prn-1].sat!=sat) {
             raw->nav.geph[prn-1].frq=gfrq-7;
         }
-        tt=timediff(raw->time,raw->tobs);
-        if (raw->tobs.time!=0) {
-            lli=lockt-raw->lockt[sat-1][pos]+0.05<=tt||
-                halfc!=raw->halfc[sat-1][pos];
+        if (raw->tobs[sat-1][pos].time!=0) {
+            tt=timediff(raw->time,raw->tobs[sat-1][pos]);
+            lli=lockt-raw->lockt[sat-1][pos]+0.05<=tt?LLI_SLIP:0;
         }
         else {
             lli=0;
         }
-        if (!parity) lli|=2;
+        if (!parity) lli|=LLI_HALFC;
+        if (halfc  ) lli|=LLI_HALFA;
+        raw->tobs [sat-1][pos]=raw->time;
         raw->lockt[sat-1][pos]=lockt;
         raw->halfc[sat-1][pos]=halfc;
+        
         if (!clock) psr=0.0;     /* code unlock */
         if (!plock) adr=dop=0.0; /* phase unlock */
         
@@ -464,7 +468,6 @@ static int decode_rangeb(raw_t *raw)
 #endif
         }
     }
-    raw->tobs=raw->time;
     return 1;
 }
 /* decode rawephemb ----------------------------------------------------------*/
@@ -793,7 +796,7 @@ static int decode_galephemerisb(raw_t *raw)
         return -1;
     }
     tow=time2gpst(raw->time,&week);
-    eph.week=week; /* gps week */
+    eph.week=week; /* gps-week = gal-week */
     eph.toe=gpst2time(eph.week,eph.toes);
     
     /* for week-handover problem */
@@ -1060,7 +1063,9 @@ static int decode_bdsephemerisb(raw_t *raw)
     eph.ttr=raw->time;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[eph.sat-1].toe,eph.toe)==0.0) return 0; /* unchanged */
+        if (timediff(raw->nav.eph[eph.sat-1].toe,eph.toe)==0.0&&
+            raw->nav.eph[eph.sat-1].iode==eph.iode&&
+            raw->nav.eph[eph.sat-1].iodc==eph.iodc) return 0; /* unchanged */
     }
     raw->nav.eph[eph.sat-1]=eph;
     raw->ephsat=eph.sat;
@@ -1099,8 +1104,8 @@ static int decode_rgeb(raw_t *raw)
             trace(2,"oem3 regb satellite number error: sys=%d prn=%d\n",sys,prn);
             continue;
         }
-        tt=timediff(raw->time,raw->tobs);
-        if (raw->tobs.time!=0) {
+        if (raw->tobs[sat-1][freq].time!=0) {
+            tt=timediff(raw->time,raw->tobs[sat-1][freq]);
             lli=lockt-raw->lockt[sat-1][freq]+0.05<tt||
                 parity!=raw->halfc[sat-1][freq];
         }
@@ -1108,6 +1113,7 @@ static int decode_rgeb(raw_t *raw)
             lli=0;
         }
         if (!parity) lli|=2;
+        raw->tobs [sat-1][freq]=raw->time;
         raw->lockt[sat-1][freq]=lockt;
         raw->halfc[sat-1][freq]=parity;
         
@@ -1124,7 +1130,6 @@ static int decode_rgeb(raw_t *raw)
             raw->obs.data[index].code[freq]=freq==0?CODE_L1C:CODE_L2P;
         }
     }
-    raw->tobs=raw->time;
     return 1;
 }
 /* decode rged ---------------------------------------------------------------*/
@@ -1163,12 +1168,12 @@ static int decode_rged(raw_t *raw)
             trace(2,"oem3 regd satellite number error: sys=%d prn=%d\n",sys,prn);
             continue;
         }
-        tt=timediff(raw->time,raw->tobs);
         psr=(psrh*4294967296.0+psrl)/128.0;
         adr_rolls=floor((psr/(freq==0?WL1:WL2)-adr)/MAXVAL+0.5);
         adr=adr+MAXVAL*adr_rolls;
         
-        if (raw->tobs.time!=0) {
+        if (raw->tobs[sat-1][freq].time!=0) {
+            tt=timediff(raw->time,raw->tobs[sat-1][freq]);
             lli=lockt-raw->lockt[sat-1][freq]+0.05<tt||
                 parity!=raw->halfc[sat-1][freq];
         }
@@ -1176,6 +1181,7 @@ static int decode_rged(raw_t *raw)
             lli=0;
         }
         if (!parity) lli|=2;
+        raw->tobs [sat-1][freq]=raw->time;
         raw->lockt[sat-1][freq]=lockt;
         raw->halfc[sat-1][freq]=parity;
         
@@ -1191,7 +1197,6 @@ static int decode_rged(raw_t *raw)
             raw->obs.data[index].code[freq]=freq==0?CODE_L1C:CODE_L2P;
         }
     }
-    raw->tobs=raw->time;
     return 1;
 }
 /* decode repb ---------------------------------------------------------------*/

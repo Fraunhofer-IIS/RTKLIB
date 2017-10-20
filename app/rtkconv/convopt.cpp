@@ -85,6 +85,8 @@ void __fastcall TConvOptDialog::FormShow(TObject *Sender)
 	Freq7->Checked=MainWindow->FreqType&FREQTYPE_L9;
 	ExSats->Text=MainWindow->ExSats;
 	TraceLevel->ItemIndex=MainWindow->TraceLevel;
+	ChkSepNav->Checked=MainWindow->SepNav;
+	TimeTol->Text=s.sprintf("%.4g",MainWindow->TimeTol);
 	
 	UpdateEnable();
 }
@@ -147,6 +149,8 @@ void __fastcall TConvOptDialog::BtnOkClick(TObject *Sender)
 	MainWindow->FreqType=freqtype;
 	MainWindow->ExSats=ExSats->Text;
 	MainWindow->TraceLevel=TraceLevel->ItemIndex;
+	MainWindow->SepNav=ChkSepNav->Checked;
+	MainWindow->TimeTol=str2dbl(TimeTol->Text);
 }
 //---------------------------------------------------------------------------
 void __fastcall TConvOptDialog::RnxFileClick(TObject *Sender)
@@ -193,6 +197,7 @@ void __fastcall TConvOptDialog::UpdateEnable(void)
 	AppPos0->Enabled=AutoPos->Checked;
 	AppPos1->Enabled=AutoPos->Checked;
 	AppPos2->Enabled=AutoPos->Checked;
+	ChkSepNav->Enabled=RnxVer->ItemIndex>=3;
 }
 //---------------------------------------------------------------------------
 

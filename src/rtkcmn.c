@@ -125,6 +125,7 @@
 *           2016/09/05 1.40 fix bug on invalid nav data read in readnav()
 *           2016/09/17 1.41 suppress warnings
 *           2016/09/19 1.42 modify api deg2dms() to consider numerical error
+*           2017/04/11 1.43 delete EXPORT for global variables
 *-----------------------------------------------------------------------------*/
 #define _POSIX_C_SOURCE 199506
 #include <stdarg.h>
@@ -137,8 +138,6 @@
 #include <sys/types.h>
 #endif
 #include "rtklib.h"
-
-static const char rcsid[]="$Id: rtkcmn.c,v 1.1 2008/07/17 21:48:06 ttaka Exp ttaka $";
 
 /* constants -----------------------------------------------------------------*/
 
@@ -170,7 +169,7 @@ static double leaps[MAXLEAPS+1][7]={ /* leap seconds (y,m,d,h,m,s,utc-gpst) */
     {1981,7,1,0,0,0, -1},
     {0}
 };
-EXPORT const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
+const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
     10.8,13.8,16.3,18.5,20.5,22.5,24.3,26.1,27.9,29.6,
     31.3,32.9,34.5,36.1,37.7,39.3,40.8,42.3,43.8,45.3,
     46.8,48.3,49.7,51.2,52.6,54.1,55.5,56.9,58.3,59.7,
@@ -182,11 +181,11 @@ EXPORT const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
     126 ,127 ,128 ,129 ,131 ,132 ,133 ,134 ,135 ,137 ,
     138 ,139 ,140 ,142 ,143 ,144 ,145 ,147 ,148 ,149
 };
-EXPORT const double lam_carr[MAXFREQ]={ /* carrier wave length (m) */
+const double lam_carr[MAXFREQ]={ /* carrier wave length (m) */
     CLIGHT/FREQ1,CLIGHT/FREQ2,CLIGHT/FREQ5,CLIGHT/FREQ6,CLIGHT/FREQ7,
     CLIGHT/FREQ8,CLIGHT/FREQ9
 };
-EXPORT const prcopt_t prcopt_default={ /* defaults processing options */
+const prcopt_t prcopt_default={ /* defaults processing options */
     PMODE_SINGLE,0,2,SYS_GPS,   /* mode,soltype,nf,navsys */
     15.0*D2R,{{0,0}},           /* elmin,snrmask */
     0,1,1,1,                    /* sateph,modear,glomodear,bdsmodear */
@@ -206,14 +205,14 @@ EXPORT const prcopt_t prcopt_default={ /* defaults processing options */
     {"",""},                    /* anttype */
     {{0}},{{0}},{0}             /* antdel,pcv,exsats */
 };
-EXPORT const solopt_t solopt_default={ /* defaults solution output options */
+const solopt_t solopt_default={ /* defaults solution output options */
     SOLF_LLH,TIMES_GPST,1,3,    /* posf,times,timef,timeu */
-    0,1,0,0,0,0,                /* degf,outhead,outopt,datum,height,geoid */
+    0,1,0,0,0,0,0,              /* degf,outhead,outopt,outvel,datum,height,geoid */
     0,0,0,                      /* solstatic,sstat,trace */
     {0.0,0.0},                  /* nmeaintv */
     " ",""                      /* separator/program name */
 };
-EXPORT const char *formatstrs[32]={    /* stream format strings */
+const char *formatstrs[32]={    /* stream format strings */
     "RTCM 2",                   /*  0 */
     "RTCM 3",                   /*  1 */
     "NovAtel OEM6",             /*  2 */
@@ -230,12 +229,13 @@ EXPORT const char *formatstrs[32]={    /* stream format strings */
     "Trimble RT17",             /* 13 */
     "Septentrio",               /* 14 */
     "CMR/CMR+",                 /* 15 */
-    "LEX Receiver",             /* 16 */
-    "RINEX",                    /* 17 */
-    "SP3",                      /* 18 */
-    "RINEX CLK",                /* 19 */
-    "SBAS",                     /* 20 */
-    "NMEA 0183",                /* 21 */
+    "TERSUS",                   /* 16 */
+    "LEX Receiver",             /* 17 */
+    "RINEX",                    /* 18 */
+    "SP3",                      /* 19 */
+    "RINEX CLK",                /* 20 */
+    "SBAS",                     /* 21 */
+    "NMEA 0183",                /* 22 */
     NULL
 };
 static char *obscodes[]={       /* observation code strings */
@@ -244,7 +244,7 @@ static char *obscodes[]={       /* observation code strings */
     "1A","1B","1X","1Z","2C", "2D","2S","2L","2X","2P", /* 10-19 */
     "2W","2Y","2M","2N","5I", "5Q","5X","7I","7Q","7X", /* 20-29 */
     "6A","6B","6C","6X","6Z", "6S","6L","8L","8Q","8X", /* 30-39 */
-    "2I","2Q","6I","6Q","3I", "3Q","3X","1I","1Q","5A"  /* 40-49 */
+    "2I","2Q","6I","6Q","3I", "3Q","3X","1I","1Q","5A", /* 40-49 */
     "5B","5C","9A","9B","9C", "9X",""  ,""  ,""  ,""    /* 50-59 */
 };
 static unsigned char obsfreqs[]={
@@ -1046,7 +1046,8 @@ extern int matinv(double *A, int n)
     indx=imat(n,1); B=mat(n,n); matcpy(B,A,n,n);
     if (ludcmp(B,n,indx,&d)) {free(indx); free(B); return -1;}
     for (j=0;j<n;j++) {
-        for (i=0;i<n;i++) A[i+j*n]=0.0; A[j+j*n]=1.0;
+        for (i=0;i<n;i++) A[i+j*n]=0.0;
+        A[j+j*n]=1.0;
         lubksb(B,n,indx,A+j*n);
     }
     free(indx); free(B);
@@ -1219,7 +1220,8 @@ extern double str2num(const char *s, int i, int n)
     char str[256],*p=str;
     
     if (i<0||(int)strlen(s)<i||(int)sizeof(str)-1<n) return 0.0;
-    for (s+=i;*s&&--n>=0;s++) *p++=*s=='d'||*s=='D'?'E':*s; *p='\0';
+    for (s+=i;*s&&--n>=0;s++) *p++=*s=='d'||*s=='D'?'E':*s;
+    *p='\0';
     return sscanf(str,"%lf",&value)==1?value:0.0;
 }
 /* string to time --------------------------------------------------------------
@@ -1235,7 +1237,8 @@ extern int str2time(const char *s, int i, int n, gtime_t *t)
     char str[256],*p=str;
     
     if (i<0||(int)strlen(s)<i||(int)sizeof(str)-1<i) return -1;
-    for (s+=i;*s&&--n>=0;) *p++=*s++; *p='\0';
+    for (s+=i;*s&&--n>=0;) *p++=*s++;
+    *p='\0';
     if (sscanf(str,"%lf %lf %lf %lf %lf %lf",ep,ep+1,ep+2,ep+3,ep+4,ep+5)<6)
         return -1;
     if (ep[0]<100.0) ep[0]+=ep[0]<80.0?2000.0:1900.0;
@@ -3386,7 +3389,7 @@ extern double satazel(const double *pos, const double *e, double *azel)
 * return : none
 * notes  : dop[0]-[3] return 0 in case of dop computation error
 *-----------------------------------------------------------------------------*/
-#define SQRT(x)     ((x)<0.0?0.0:sqrt(x))
+#define SQRT(x)     ((x)<0.0||(x)!=(x)?0.0:sqrt(x))
 
 extern void dops(int ns, const double *azel, double elmin, double *dop)
 {

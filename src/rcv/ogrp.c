@@ -127,7 +127,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     int sat;
     json_object *jgnss, *jsignal_type, *jchannel_state;
     int freq_nr, obs_nr;
-    double tt = timediff(raw->time,raw->tobs);
+    double tt;
     int lli;
     const char *gnss, *signal_type, *channel_state;
     int sys, code, freq;
@@ -158,6 +158,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
     freq_nr = checkpri(freq);
     if (freq_nr == -1) {
         trace(2, "Discard channel measurement. Signal priority is too low for %s %s\n", gnss, signal_type);
+        return -1;
     }
 
     if (json_get_number(jobj, "pseudo_range",  &pseudorange)   != 0) return -1;
@@ -172,7 +173,8 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
         return -1;
     }
 
-    if (raw->tobs.time != 0) lli = locktime - raw->lockt[sat - 1][freq_nr] + 0.05 <= tt;
+    tt = timediff(raw->time,raw->tobs[sat - 1][freq_nr]);
+    if (raw->tobs[sat - 1][freq_nr].time != 0) lli = locktime - raw->lockt[sat - 1][freq_nr] + 0.05 <= tt;
     else lli = 0;
     raw->lockt[sat - 1][freq_nr] = locktime;
 
@@ -187,6 +189,8 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
 
     raw->obs.data[obs_nr].time = raw->time;
     raw->obs.data[obs_nr].sat  = sat;
+
+    raw->tobs[sat - 1][freq_nr] = raw->time;
 
     return 1;
 }
@@ -299,8 +303,6 @@ static int decode_ogrp_channel_measurements(raw_t *raw, json_object *jobj) {
         }
         if (raw->obs.n >= MAXOBS) return -1;
     }
-
-    raw->tobs=raw->time;
 
     return 1;
 }
