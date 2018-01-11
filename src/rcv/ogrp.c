@@ -30,11 +30,6 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 0;
             return 0;
         }
-        if (strcmp(sig_str, "L2C") == 0) {
-            *code = CODE_L2C;
-            *freq = 1;
-            return 0;
-        }
         if (strcmp(sig_str, "L2CM") == 0){
             *code = CODE_L2S;
             *freq = 1;
@@ -50,34 +45,54 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 2;
             return 0;
         }
+        if (strcmp(sig_str, "L5") == 0) {
+            *code = CODE_L5X;
+            *freq = 2;
+            return 0;
+        }
         trace(2, "Unsupported GPS signal %s\n", sig_str);
         return -1;
     }
     if (strcmp(gnss_str, "Galileo") == 0) {
         *sys = SYS_GAL;
-        if ((strcmp(sig_str, "E1B") == 0) || strcmp(sig_str, "E1C") == 0) {
-            *code = CODE_L1C;
+        if (strcmp(sig_str, "E1B") == 0) {
+            *code = CODE_L1B;
             *freq = 0;
             return 0;
         }
-        if ((strcmp(sig_str, "E5a") == 0) || (strcmp(sig_str, "E5aI") == 0)) {
+        if (strcmp(sig_str, "E5aI") == 0) {
             *code = CODE_L5I;
-            *freq = 2;
+            *freq = 1;
             return 0;
         }
         if (strcmp(sig_str, "E5aQ") == 0) {
             *code = CODE_L5Q;
-            *freq = 2;
+            *freq = 1;
             return 0;
         }
-        if ((strcmp(sig_str, "E5b") == 0) || (strcmp(sig_str, "E5bI") == 0)) {
+        if (strcmp(sig_str, "E5a") == 0) {
+            *code = CODE_L5X;
+            *freq = 1;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5bI") == 0) {
             *code = CODE_L7I;
-            *freq = 4;
+            *freq = 1;
             return 0;
         }
         if (strcmp(sig_str, "E5bQ") == 0) {
             *code = CODE_L7Q;
-            *freq = 4;
+            *freq = 1;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5b") == 0) {
+            *code = CODE_L7X;
+            *freq = 1;
+            return 0;
+        }
+        if (strcmp(sig_str, "E5AltBOC") == 0) {
+            *code = CODE_L8Q;
+            *freq = 2;
             return 0;
         }
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
