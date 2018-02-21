@@ -58,7 +58,7 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
         if (strcmp(sig_str, "E1B") == 0) {
             *code = CODE_L1B;
             *freq = 0;
-            return 0;
+            return -1;
         }
         if (strcmp(sig_str, "E5aI") == 0) {
             *code = CODE_L5I;
@@ -91,8 +91,8 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             return 0;
         }
         if (strcmp(sig_str, "E5AltBOC") == 0) {
-            *code = CODE_L8Q;
-            *freq = 2;
+            *code = CODE_L1B;
+            *freq = 0;
             return 0;
         }
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
