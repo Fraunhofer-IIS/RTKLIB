@@ -90,6 +90,7 @@ static const char *help[]={
 "    sbf          : Septentrio SBF (only in)",
 "    cmr          : CMR/CMR+ (only in)",
 "    tersus       : TERSUS (only in)",
+"    ogrp         : OGRP",
 "",
 " -msg \"type[(tint)][,type[(tint)]...]\"",
 "                   rtcm message types and output intervals (s)",
@@ -159,6 +160,7 @@ static void decodefmt(char *path, int *fmt)
         else if (!strcmp(p,"#sbf"  )) *fmt=STRFMT_SEPT;
         else if (!strcmp(p,"#cmr"  )) *fmt=STRFMT_CMR;
         else if (!strcmp(p,"#tersus")) *fmt=STRFMT_TERSUS;
+        else if (!strcmp(p,"#ogrp"))  *fmt=STRFMT_OGRP;
         else return;
         *p='\0';
     }
