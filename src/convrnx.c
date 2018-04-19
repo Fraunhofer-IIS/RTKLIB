@@ -758,7 +758,7 @@ static void set_obstype(int format, rnxopt_t *opt)
     };
     static const unsigned char codes_ogrp[NSATSYS][8]={ /* ogrp */
         {CODE_L1C,CODE_L2S,CODE_L5I,CODE_L5Q,CODE_L5X}, /* GPS */
-        {0}, /* GLONASS */
+        {CODE_L1C}, /* GLONASS */
         {CODE_L1B,CODE_L5I,CODE_L5Q,CODE_L5X,CODE_L7I,CODE_L7Q,CODE_L7X,CODE_L8Q}, /* Galileo */
         {0}, /* QZSS */
         {0}, /* SBAS */

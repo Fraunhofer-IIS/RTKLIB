@@ -53,6 +53,17 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
         trace(2, "Unsupported GPS signal %s\n", sig_str);
         return -1;
     }
+    if (strcmp(gnss_str, "GLONASS") == 0) {
+        *sys = SYS_GLO;
+        if (strcmp(sig_str, "G1") == 0) {
+            *code = CODE_L1C;
+            *freq = 0;
+            return 0;
+        }
+        trace(2, "Unsupported GLONASS signal %s\n", sig_str);
+        return -1;
+    }
+
     if (strcmp(gnss_str, "Galileo") == 0) {
         *sys = SYS_GAL;
         if (strcmp(sig_str, "E1B") == 0) {
