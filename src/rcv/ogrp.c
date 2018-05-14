@@ -106,6 +106,11 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 2;
             return 0;
         }
+        if (strcmp(sig_str, "E5") == 0) {
+            *code = CODE_L8Q;
+            *freq = 2;
+            return 0;
+        }
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
         return -1;
     }
