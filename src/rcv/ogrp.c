@@ -440,6 +440,7 @@ extern int input_ogrpf(raw_t *raw, FILE *fp) {
     do {
         data = fgetc(fp);
         if (data == EOF) return -2;
+        if (data == 0x00) continue;
         raw->buff[raw->nbyte++] = (unsigned char)data;
     } while (data != '\n');
     raw->len = raw->nbyte;
