@@ -127,34 +127,6 @@ static double prange(const obsd_t *obs, const nav_t *nav, const double *azel,
 extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
                     const double *azel, int ionoopt, double *ion, double *var)
 {
-    trace(4,"ionocorr: time=%s opt=%d sat=%2d pos=%.3f %.3f azel=%.3f %.3f\n",
-          time_str(time,3),ionoopt,sat,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
-          azel[1]*R2D);
-    
-    /* broadcast model */
-    if (ionoopt==IONOOPT_BRDC) {
-        *ion=ionmodel(time,nav->ion_gps,pos,azel);
-        *var=SQR(*ion*ERR_BRDCI);
-        return 1;
-    }
-    /* sbas ionosphere model */
-    if (ionoopt==IONOOPT_SBAS) {
-        return sbsioncorr(time,nav,pos,azel,ion,var);
-    }
-    /* ionex tec model */
-    if (ionoopt==IONOOPT_TEC) {
-        return iontec(time,nav,pos,azel,1,ion,var);
-    }
-    /* qzss broadcast model */
-    if (ionoopt==IONOOPT_QZS&&norm(nav->ion_qzs,8)>0.0) {
-        *ion=ionmodel(time,nav->ion_qzs,pos,azel);
-        *var=SQR(*ion*ERR_BRDCI);
-        return 1;
-    }
-    /* lex ionosphere model */
-    if (ionoopt==IONOOPT_LEX) {
-        return lexioncorr(time,nav,pos,azel,ion,var);
-    }
     *ion=0.0;
     *var=ionoopt==IONOOPT_OFF?SQR(ERR_ION):0.0;
     return 1;
@@ -173,22 +145,6 @@ extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
 extern int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
                     const double *azel, int tropopt, double *trp, double *var)
 {
-    trace(4,"tropcorr: time=%s opt=%d pos=%.3f %.3f azel=%.3f %.3f\n",
-          time_str(time,3),tropopt,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
-          azel[1]*R2D);
-    
-    /* saastamoinen model */
-    if (tropopt==TROPOPT_SAAS||tropopt==TROPOPT_EST||tropopt==TROPOPT_ESTG) {
-        *trp=tropmodel(time,pos,azel,REL_HUMI);
-        *var=SQR(ERR_SAAS/(sin(azel[1])+0.1));
-        return 1;
-    }
-    /* sbas troposphere model */
-    if (tropopt==TROPOPT_SBAS) {
-        *trp=sbstropcorr(time,pos,azel,var);
-        return 1;
-    }
-    /* no correction */
     *trp=0.0;
     *var=tropopt==TROPOPT_OFF?SQR(ERR_TROP):0.0;
     return 1;

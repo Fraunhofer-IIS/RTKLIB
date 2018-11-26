@@ -246,7 +246,6 @@ extern void eph2pos(gtime_t time, const eph_t *eph, double *rs, double *dts,
         rs[2]=y*sin(i);
     }
     tk=timediff(time,eph->toc);
-    *dts=eph->f0+eph->f1*tk+eph->f2*tk*tk;
     
     /* relativity correction */
     *dts-=2.0*sqrt(mu*eph->A)*eph->e*sinE/SQR(CLIGHT);

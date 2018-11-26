@@ -95,6 +95,11 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
             *freq = 0;
             return 0;
         }
+        if (strcmp(sig_str, "E5") == 0) {
+            *code = CODE_L1B;
+            *freq = 0;
+            return 0;
+        }
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
         return -1;
     }
@@ -176,7 +181,7 @@ static int decode_ogrp_ch_meas(raw_t *raw, json_object *jobj) {
         return -1;
     }
 
-    if (json_get_number(jobj, "pseudo_range",  &pseudorange)   != 0) return -1;
+    if (json_get_number(jobj, "corrected_pseudo_range",  &pseudorange)   != 0) return -1;
     if (json_get_number(jobj, "doppler",       &doppler)       != 0) return -1;
     if (json_get_number(jobj, "carrier_phase", &carrier_phase) != 0) return -1;
     if (json_get_number(jobj, "snr",           &snr)           != 0) return -1;
