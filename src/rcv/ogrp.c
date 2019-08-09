@@ -244,9 +244,12 @@ static int decode_ogrp_ephemeris_element(raw_t *raw, json_object *jobj) {
 
     if (strcmp(gnss, "GPS") == 0) {
         sys = SYS_GPS;
+        if (json_get_number(jobj, "group_delay", &eph.tgd[0]) != 0) return -1;
     } else if (strcmp(gnss, "Galileo") == 0) {
         sys = SYS_GAL;
         eph.code = 0; /* INAV=0, FNAV=1 */
+        if (json_get_number(jobj, "group_delay_e1e5a", &eph.tgd[0]) != 0) return -1;
+        if (json_get_number(jobj, "group_delay", &eph.tgd[1]) != 0) return -1;
     } else {
         trace(2, "Unsupported GNSS system %s\n", gnss);
         return -1;
@@ -301,7 +304,6 @@ static int decode_ogrp_ephemeris_element(raw_t *raw, json_object *jobj) {
     if (json_get_number(jobj, "deln",        &eph.deln)   != 0) return -1;
     if (json_get_number(jobj, "inc_0",       &eph.i0)     != 0) return -1;
     if (json_get_number(jobj, "inc_dot",     &eph.idot)   != 0) return -1;
-    if (json_get_number(jobj, "group_delay", &eph.tgd[0]) != 0) return -1;
     if (json_get_number(jobj, "arg_per",     &eph.omg)    != 0) return -1;
 
     /* Missing parameter eph.tgd[1] --> BGD: E5B-E1 (s) */
