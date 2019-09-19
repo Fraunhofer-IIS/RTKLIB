@@ -397,6 +397,9 @@ static int decode_ogrp_msg(raw_t *raw) {
     json_object *jobj, *id_value;
     json_type type;
     const char *id_value_str;
+    int ret;
+
+    ret = 0;
 
     trace(5,"decode_ogrp_msg:\n");
 
@@ -405,20 +408,36 @@ static int decode_ogrp_msg(raw_t *raw) {
 
     if (type != json_type_object) {
         trace(5, "decode_ogrp: Wrong json_type: %d\n", type);
+        json_object_put(jobj);
         return -1;
     }
 
-    if (get_value_check_type(jobj, "id", &id_value, json_type_string) < 0) return -1;
+    if (get_value_check_type(jobj, "id", &id_value, json_type_string) < 0) {
+        json_object_put(jobj);
+        return -1;
+    }
 
-    if (decode_ogrp_timestamp(raw, jobj) != 1) return -1;
+    if (decode_ogrp_timestamp(raw, jobj) != 1) {
+        json_object_put(jobj);
+        return -1;
+    }
 
     id_value_str = json_object_get_string(id_value);
-    if (strcmp(id_value_str, "channel_measurements") == 0) return decode_ogrp_channel_measurements(raw, jobj);
-    if (strcmp(id_value_str, "ephemeris") == 0) return decode_ogrp_ephemeris(raw, jobj);
+    if (strcmp(id_value_str, "channel_measurements") == 0) {
+        ret = decode_ogrp_channel_measurements(raw, jobj);
+        json_object_put(jobj);
+        return ret;
+    }
+    if (strcmp(id_value_str, "ephemeris") == 0) {
+        ret = decode_ogrp_ephemeris(raw, jobj);
+        json_object_put(jobj);
+        return ret;
+    }
     /* TODO implement other message types */
     else
     {
         trace(2, "decode_ogrp: Message id not supported: %s\n", id_value_str);
+        json_object_put(jobj);
         return -1;
     }
 }
