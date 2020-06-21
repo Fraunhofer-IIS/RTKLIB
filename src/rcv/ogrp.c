@@ -114,6 +114,16 @@ static int get_system_and_signal(const char *gnss_str, const char *sig_str, int 
         trace(2, "Unsupported Galileo signal %s\n", sig_str);
         return -1;
     }
+    if (strcmp(gnss_str, "BeiDou") == 0) {
+        *sys = SYS_CMP;
+        if (strcmp(sig_str, "B1I") == 0) {
+            *code = CODE_L1I;
+            *freq = 0;
+            return 0;
+        }
+        trace(2, "Unsupported BeiDou signal %s\n", sig_str);
+        return -1;
+    }
     trace(2, "Unsupported GNSS system %s\n", gnss_str);
     return -1;
 }
