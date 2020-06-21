@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 * rinex.c : rinex functions
 *
-*          Copyright (C) 2007-2014 by T.TAKASU, All rights reserved.
+*          Copyright (C) 2007-2019 by T.TAKASU, All rights reserved.
 *
 * reference :
 *     [1] W.Gurtner and L.Estey, RINEX The Receiver Independent Exchange Format
@@ -20,6 +20,10 @@
 *         International GNSS Service (IGS), RINEX Working Group and Radio
 *         Technical Commission for Maritime Services Special Committee 104
 *         (RTCM-SC104), December 10, 2012
+*     [8] RINEX The Receiver Independent Exchange Format Version 3.03,
+*         International GNSS Service (IGS), RINEX Working Group and Radio
+*         Technical Commission for Maritime Services Special Committee 104
+*         (RTCM-SC104), July 14, 2015
 *
 * version : $Revision:$
 * history : 2006/01/16 1.0  new
@@ -86,6 +90,9 @@
 *           2016/09/17 1.26 fix bug on fit interval in QZSS RINEX nav
 *                           URA output value complient to RINEX 3.03
 *           2016/10/10 1.27 add api outrnxinavh()
+*           2018/10/10 1.28 support galileo sisa value for rinex nav output
+*                           fix bug on handling beidou B1 code in rinex 3.03
+*           2019/08/19 1.29 support galileo sisa index for rinex nav input
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -191,6 +198,24 @@ static int uraindex(double value)
     int i;
     for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
     return i;
+}
+/* galileo sisa index to sisa nominal value (m) ------------------------------*/
+static double sisa_value(int sisa)
+{
+    if (sisa<= 49) return sisa*0.01;
+    if (sisa<= 74) return 0.5+(sisa- 50)*0.02;
+    if (sisa<= 99) return 1.0+(sisa- 75)*0.04;
+    if (sisa<=125) return 2.0+(sisa-100)*0.16;
+    return -1.0; /* unknown or NAPA */
+}
+/* galileo sisa value (m) to sisa index --------------------------------------*/
+static int sisa_index(double value)
+{
+    if (value<0.0 || value>6.0) return 255; /* unknown or NAPA */
+    else if (value<=0.5) return (int)(value/0.01);
+    else if (value<=1.0) return (int)((value-0.5)/0.02)+50;
+    else if (value<=2.0) return (int)((value-1.0)/0.04)+75;
+    return ((int)(value-2.0)/0.16)+100;
 }
 /* initialize station parameter ----------------------------------------------*/
 static void init_sta(sta_t *sta)
@@ -375,8 +400,8 @@ static void decode_obsh(FILE *fp, char *buff, double ver, int *tsys,
         }
         *tobs[i][nt]='\0';
         
-        /* change beidou B1 code: 3.02 draft -> 3.02/3.03 */
-        if (i==5) {
+        /* change beidou B1 code: 3.02 */
+        if (i==5&&fabs(ver-3.02)<1e-3) {
             for (j=0;j<nt;j++) if (tobs[i][j][1]=='2') tobs[i][j][1]='1';
         }
         /* if unknown code in ver.3, set default code */
@@ -1107,7 +1132,7 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
                                       /* bit   4-5: E5a HS */
                                       /* bit     6: E5b DVS */
                                       /* bit   7-8: E5b HS */
-        eph->sva =uraindex(data[23]); /* ura (m->index) */
+        eph->sva =sisa_index(data[23]); /* sisa (m->index) */
         
         eph->tgd[0]=   data[25];      /* BGD E5a/E1 */
         eph->tgd[1]=   data[26];      /* BGD E5b/E1 */
@@ -1845,6 +1870,7 @@ static void outobstype_ver2(FILE *fp, const rnxopt_t *opt)
 static void outobstype_ver3(FILE *fp, const rnxopt_t *opt)
 {
     const char label[]="SYS / # / OBS TYPES";
+    char tobs[8];
     int i,j;
     
     trace(3,"outobstype_ver3:\n");
@@ -1857,7 +1883,14 @@ static void outobstype_ver3(FILE *fp, const rnxopt_t *opt)
         for (j=0;j<opt->nobs[i];j++) {
             if (j>0&&j%13==0) fprintf(fp,"      ");
             
-            fprintf(fp," %3s",opt->tobs[i][j]);
+            strcpy(tobs,opt->tobs[i][j]);
+            
+            /* beidou B1x -> 1x (3.02), 2x (other) */
+            if (navsys[i]==SYS_CMP) {
+                if (opt->rnxver==3.02&&tobs[1]=='2') tobs[1]='1';
+                if (opt->rnxver!=3.02&&tobs[1]=='1') tobs[1]='2';
+            }
+            fprintf(fp," %3s", tobs);
             
             if (j%13==12) fprintf(fp,"  %-20s\n",label);
         }
@@ -2353,7 +2386,12 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     outnavf(fp,eph->flag   );
     fprintf(fp,"\n%s",sep  );
     
-    outnavf(fp,uravalue(eph->sva));
+    if (sys==SYS_GAL) {
+        outnavf(fp,sisa_value(eph->sva));
+    }
+    else {
+        outnavf(fp,uravalue(eph->sva));
+    }
     outnavf(fp,eph->svh    );
     outnavf(fp,eph->tgd[0] ); /* GPS/QZS:TGD, GAL:BGD E5a/E1, BDS: TGD1 B1/B3 */
     if (sys==SYS_GAL||sys==SYS_CMP) {
